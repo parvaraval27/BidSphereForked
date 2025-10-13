@@ -1,35 +1,64 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+// frontend/src/App.jsx
+import React, { useEffect, useState } from "react";
+import { BrowserRouter as Router, Routes, Route, Link, Navigate } from "react-router-dom";
+import Home from "./pages/Home.jsx";
+import Login from "./pages/Login.jsx";
+import Register from "./pages/Register.jsx";
+import AdminDashboard from "./pages/AdminDashboard.jsx";
+import NotFound from "./pages/NotFound.jsx";
+import api from "./services/api";
 
 function App() {
-  const [count, setCount] = useState(0)
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true); // New: show loading until /me resolves
+
+  useEffect(() => {
+    // Auto-login using cookie if present
+    api.get("/me", { withCredentials: true }) // make sure your api.js has withCredentials or pass here
+      .then(res => setUser(res.data.user))
+      .catch(() => setUser(null))
+      .finally(() => setLoading(false)); // stop loading
+  }, []);
+
+  const handleLogout = () => {
+    api.post("/logout", {}, { withCredentials: true })
+      .then(() => setUser(null))
+      .catch(() => setUser(null));
+  };
+
+  if (loading) {
+    // Show a simple loading screen while checking auth
+    return <div style={{ padding: "20px" }}>Loading...</div>;
+  }
 
   return (
     <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.jsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
+      <nav style={{ padding: "10px", background: "#f4f4f4" }}>
+        <Link to="/" style={{ marginRight: 10 }}>Home</Link>
+
+        {!user && (
+          <>
+            <Link to="/login" style={{ marginRight: 10 }}>Login</Link>
+            <Link to="/register" style={{ marginRight: 10 }}>Register</Link>
+          </>
+        )}
+
+        {user && user.role === "admin" && (
+          <Link to="/admin" style={{ marginRight: 10 }}>Admin Dashboard</Link>
+        )}
+
+        {user && <button onClick={handleLogout} style={{ marginLeft: 10 }}>Logout</button>}
+      </nav>
+
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/login" element={user ? <Navigate to="/" /> : <Login setUser={setUser} />} />
+        <Route path="/register" element={user ? <Navigate to="/" /> : <Register setUser={setUser} />} />
+        <Route path="/admin" element={user?.role === "admin" ? <AdminDashboard /> : <Navigate to="/" />} />
+        <Route path="*" element={<NotFound />} />
+      </Routes>
     </>
-  )
+  );
 }
 
 export default App;
