@@ -1,52 +1,90 @@
-// frontend/src/pages/Register.js
 import React, { useState } from "react";
-import api from "../services/api";
-import { useNavigate } from "react-router-dom";
+import registerImg from "../assets/register.jpg";
+import { Link } from "react-router-dom";
 
-function Register({ setUser }) {
-  const [formData, setFormData] = useState({ name: "", email: "", password: "", role: "user" });
-  const [rememberMe, setRememberMe] = useState(true); // you may want default true or false
-  const [message, setMessage] = useState("");
-  const navigate = useNavigate();
+function Register() {
+  const [form, setForm] = useState({
+    name: "",
+    email: "",
+    password: "",
+  });
 
-  const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
+  const handleChange = (e) => {
+    setForm({ ...form, [e.target.name]: e.target.value });
+  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    api.post("/register", { ...formData, rememberMe })
-      .then(res => {
-        setUser(res.data.user);
-        navigate("/");
-      })
-      .catch(err => {
-        console.error(err.response?.data || err.message);
-        setMessage(err.response?.data?.message || "Registration failed");
-      });
+
+    if (!form.name || !form.email || !form.password) {
+      alert("Please fill out all fields.");
+      return;
+    }
+
+    
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(form.email)) {
+      alert("Please enter a valid email address.");
+      return;
+    }
+
+    if (form.password.length < 8) {
+      alert("Password must be at least 8 characters long.");
+      return;
+    }
+
+   
+    alert("Account created successfully!");
+    setForm({ name: "", email: "", password: "" }); 
   };
 
   return (
-    <div>
-      <h2>Register</h2>
-      <form onSubmit={handleSubmit}>
-        <input type="text" name="name" placeholder="Name" value={formData.name} onChange={handleChange} required />
-        <br/>
-        <input type="email" name="email" placeholder="Email" value={formData.email} onChange={handleChange} required />
-        <br/>
-        <input type="password" name="password" placeholder="Password" value={formData.password} onChange={handleChange} required />
-        <br/>
-        {/* Role should be 'user' by default, keep admin registration controlled */}
-        <select name="role" value={formData.role} onChange={handleChange}>
-          <option value="user">User</option>
-          <option value="admin">Admin</option> {/* If you allow admin self-register, be careful in prod */}
-        </select>
-        <br/>
-        <label>
-          <input type="checkbox" checked={rememberMe} onChange={e => setRememberMe(e.target.checked)} /> Remember Me
-        </label>
-        <br/>
-        <button type="submit">Register</button>
-      </form>
-      <p>{message}</p>
+    <div className="flex p-10 items-center justify-center">   
+      <div className="w-1/2">
+        <img src={registerImg} alt="Register Banner" className="rounded-lg" />
+      </div>
+
+      <div className="w-1/2 pl-12">
+        <h2 className="text-3xl font-bold mb-6">Create an account</h2>
+        <form onSubmit={handleSubmit}>
+          <input
+            type="text"
+            name="name"
+            placeholder="Name"
+            value={form.name}
+            onChange={handleChange}
+            className="w-full p-3 border rounded mb-4"
+          />
+          <input
+            type="email"
+            name="email"
+            placeholder="Email ID"
+            value={form.email}
+            onChange={handleChange}
+            className="w-full p-3 border rounded mb-4"
+          />
+          <input
+            type="password"
+            name="password"
+            placeholder="Password"
+            value={form.password}
+            onChange={handleChange}
+            className="w-full p-3 border rounded mb-4"
+          />
+
+          <button
+            type="submit"
+            className="bg-red-500 text-white px-6 py-2 rounded w-full mb-3"
+          >
+            Create Account
+          </button>
+        </form>
+
+        <p>
+          Already have an account?{" "}
+          <Link to="/login" className="text-blue-600">Log in</Link>
+        </p>
+      </div>
     </div>
   );
 }
