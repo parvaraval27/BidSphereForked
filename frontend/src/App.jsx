@@ -4,7 +4,7 @@ import Navbar from "./components/Navbar";
 import Home from "./pages/Home";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
-
+import OtpPage from "./pages/Auth"; 
 import Contact from "./pages/contact";
 function App() {
   return (
@@ -15,6 +15,7 @@ function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/contact" element={<Contact />} />
+        <Route path="/otp" element={<OtpPage />} />
       </Routes>
     </div>
   );

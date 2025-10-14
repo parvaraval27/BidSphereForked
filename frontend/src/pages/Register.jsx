@@ -1,8 +1,11 @@
 import React, { useState } from "react";
 import registerImg from "../assets/register.jpg";
 import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
+
 
 function Register() {
+  const navigate = useNavigate();
   const [form, setForm] = useState({
     name: "",
     email: "",
@@ -32,10 +35,8 @@ function Register() {
       alert("Password must be at least 8 characters long.");
       return;
     }
-
-   
-    alert("Account created successfully!");
-    setForm({ name: "", email: "", password: "" }); 
+    navigate("/otp");
+    setForm({ name: "", email: "", password: "" });
   };
 
   return (
