@@ -36,3 +36,9 @@ app.use("/bidsphere/user", authRoutes);
 // Admin Route
 import adminRoutes from "./routes/adminRoutes.js";
 app.use("/bidsphere/admin", restrictAdminIP , adminRoutes)
+
+// Auction Route
+import auctionRoutes from "./routes/auctionRoutes.js";
+app.use("/bidsphere/auctions", auctionRoutes);
+
+export default app;
