@@ -7,6 +7,7 @@ import Register from "./pages/Register";
 import VerifyEmail from "./pages/VerifyMail";
 import AdminDashboard from "./pages/AdminDashboard";
 import AdminLogin from "./pages/AdminLogin";
+import CreateAuction from "./pages/CreateAuction";
 
 import Contact from "./pages/contact";
 function App() {
@@ -19,7 +20,7 @@ function App() {
         <Route path="/register" element={<Register />} />
         <Route path="/contact" element={<Contact />} />
         <Route path="/verifyemail" element={<VerifyEmail />} />
-        
+        <Route path="/create-auction" element={<CreateAuction />} />
         <Route path="/admin/login" element={<AdminLogin />} />
         <Route path="/admin/dashboard" element={<AdminDashboard />} />
       </Routes>
