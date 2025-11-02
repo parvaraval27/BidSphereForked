@@ -21,6 +21,7 @@ function FeeStructure() {
 
 export default function CreateAuction() {
   const [form, setForm] = useState({
+    auctionName: "",
     itemName: "",
     itemDescription: "",
     category: "",
@@ -221,6 +222,7 @@ export default function CreateAuction() {
   function handleSubmit(e) {
     e.preventDefault();
 
+    if (!form.auctionName.trim()) return alert("Please enter auction name.");
     if (!form.itemName.trim()) return alert("Please enter item name.");
     if (!form.itemDescription.trim()) return alert("Please enter item description.");
     if (!form.category) return alert("Please select a category.");
@@ -271,6 +273,23 @@ export default function CreateAuction() {
           <section className="bg-white border border-gray-200 rounded-lg p-6">
             <h2 className="text-lg font-semibold mb-1">Item Details</h2>
             <p className="text-sm text-gray-600 mb-4">Provide detailed information about your product</p>
+
+            {/* Auction Name (new) */}
+            <div className="mb-4">
+              <label className="block">
+                <span className="text-sm font-medium text-gray-700">Auction Name*</span>
+                <input
+                  type="text"
+                  name="auctionName"
+                  value={form.auctionName}
+                  onChange={handleChange}
+                  className="mt-2 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400"
+                  placeholder="Enter auction name, for example 'Rare Coin Collection' or 'Classic Car Bidding Event'"
+                  required
+                />
+                <p className="text-xs text-gray-500 mt-1">Enter a descriptive title for your auction (this is shown to bidders).</p>
+              </label>
+            </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <div className="space-y-4">
