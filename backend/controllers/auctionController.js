@@ -1,6 +1,7 @@
 import Auction from "../models/Auction.js";
 import Bid from "../models/Bids.js";
 import mongoose from "mongoose";
+import AuctionLog from "../models/AuctionLog.js";
 
 //helper func to determine status i.e. upcoming/live/completed auction
 function determineStatus(startTime, endTime) {
@@ -56,6 +57,19 @@ async function createAuction(req, res) {
       autoBidders: [],
       totalBids: 0,
       totalParticipants: 0,
+    });
+
+    await AuctionLog.create({
+      auctionId: auction._id,
+      userId: userId,
+      type: "AUCTION_CREATED",
+      details: {
+        itemName: name,
+        startingPrice,
+        minIncrement,
+        startTime,
+        endTime,
+      },
     });
 
     return res.status(201).json({
@@ -200,7 +214,6 @@ async function editAuction(req, res) {
 
     const updates = {};
     
-    
     if (req.body.title || req.body.name || req.body.description || req.body.category || req.body.condition || req.body.images || req.body.metadata) {
       updates.item = { ...existing.item };
       if (req.body.title !== undefined) { updates.title = String(req.body.title).trim();}
@@ -247,6 +260,16 @@ async function editAuction(req, res) {
       {new: true, runValidators: true }
     );
 
+    await AuctionLog.create({
+      auctionId: updatedAuction._id,
+      userId,
+      type: "AUCTION_UPDATED",
+      details: {
+        updatedFields: Object.keys(updates),
+        newValues: updates,
+      },
+    });
+
     return res.status(200).json({
       success: true,
       message: "Auction updated successfully",
@@ -262,6 +285,7 @@ async function editAuction(req, res) {
 async function deleteAuction(req, res) {
   try {
     const { auctionId } = req.params;
+    const userId = req.user._id;
 
     const auction = await Auction.findByIdAndUpdate(
       auctionId,
@@ -275,6 +299,16 @@ async function deleteAuction(req, res) {
         message: "Auction not found",
       });
     }
+
+    await AuctionLog.create({
+      auctionId: auction._id,
+      userId,
+      type: "AUCTION_DELETED",
+      details: {
+        deletedAt: new Date(),
+        auctionData: auction, 
+      },
+    });
 
     return res.status(200).json({
       success: true,
