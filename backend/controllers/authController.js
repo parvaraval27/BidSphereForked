@@ -6,75 +6,92 @@ import { SendVerificationCode, WelcomeEmail } from "../services/email.sender.js"
 
 
 async function handleRegister (req, res) {
+  try {
+    const { username, email, password} = req.body;
+    if (!username || !email || !password) {
+      return res.status(400).json({ message: "All fields are Required" });
+    }
 
-  const { username, email, password} = req.body;
-  if (!username || !email || !password) {
-    return res.status(400).json({ message: "All fields are Required" });
+    // Check if user already exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ message: "User already exists" });
+    }
+
+    const hashedPassword = await generateHashPassword(password);
+    const verificationCode = Math.floor(100000 + Math.random() *900000).toString();
+
+    User.create({
+      username,
+      email,
+      password: hashedPassword,
+      verificationCode
+    });
+
+    SendVerificationCode(email, verificationCode);
+    res.status(201).json({ message: "User registered successfully" });
   }
-
-  // Check if user already exists
-  const existingUser = await User.findOne({ email });
-  if (existingUser) {
-    return res.status(400).json({ message: "User already exists" });
+   catch (err) {
+    console.error("user register error:", err);
+    return res.status(400).json({ success: false, message: err.message });
   }
-
-  const hashedPassword = await generateHashPassword(password);
-  const verificationCode = Math.floor(100000 + Math.random() *900000).toString();
-
-  User.create({
-    username,
-    email,
-    password: hashedPassword,
-    verificationCode
-  });
-
-  SendVerificationCode(email, verificationCode);
-  res.status(201).json({ message: "User registered successfully" });  
+    
 }
 
 async function handleLogin (req, res) {
-  
-  const userToken = req.cookies?.token;
+  try {
+    const userToken = req.cookies?.token;
 
-  if(userToken) 
-    return res.status(400).json({message:"You are already logged in, go to home page"});
+    if(userToken) 
+      return res.status(400).json({message:"You are already logged in, go to home page"});
 
-  const { email, password } = req.body;
+    const { email, password } = req.body;
 
-  if (!email || !password) {
-    return res.status(400).json({ message: "Provide email and password" });
+    if (!email || !password) {
+      return res.status(400).json({ message: "Provide email and password" });
+    }
+
+    const user = await User.findOne({ email });  
+    if (!user) {
+      return res.status(401).json({ message: "Invalid email or password" });
+    }
+
+    // Compare password with stored hash
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res.status(401).json({ message: "Invalid email or password" });
+    }
+
+    if (!user.isVerified) {
+      return res.status(401).json({ message: "Email not verified" });
+    }
+
+    const token = setUser(user);
+    res.cookie("token", token);
+    
+    return res.json({ message: "Login successful", token, user: { username: user.username, email: user.email } });
   }
-
-  const user = await User.findOne({ email });  
-  if (!user) {
-    return res.status(401).json({ message: "Invalid email or password" });
+   catch (err) {
+    console.error("user login error:", err);
+    return res.status(400).json({ success: false, message: err.message });
   }
-
-  // Compare password with stored hash
-  const isMatch = await bcrypt.compare(password, user.password);
-  if (!isMatch) {
-    return res.status(401).json({ message: "Invalid email or password" });
-  }
-
-  if (!user.isVerified) {
-    return res.status(401).json({ message: "Email not verified" });
-  }
-
-  const token = setUser(user);
-  res.cookie("token", token);
-  
-  return res.json({ message: "Login successful", token, user: { username: user.username, email: user.email } });
-  
 };
 
 async function handleLogout (req, res) {
-  //Clear the token cookie
-  res.clearCookie("token");
+  try {
+    //Clear the token cookie
+    res.clearCookie("token");
 
-  return res.json({ message: "Logged out" });
+   return res.json({ message: "Logged out" });
+  }
+  catch (err) {
+    console.error("user logout error:", err);
+    return res.status(400).json({ success: false, message: err.message });
+  }
 };
 
 async function verifyEmail (req, res) {
+  try{
     const { email, code } = req.body;
 
     if (!email || !code) {
@@ -93,6 +110,11 @@ async function verifyEmail (req, res) {
 
     WelcomeEmail(user.email, user.username);
     return res.status(200).json({ message: "Email Verified Successfully" })
+  }
+  catch(err){
+    console.error("email verification error:", err);
+    return res.status(400).json({ success: false, message: err.message });
+  }
 }
 
 export { handleRegister , handleLogin, handleLogout, verifyEmail };

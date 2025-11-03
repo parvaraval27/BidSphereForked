@@ -1,7 +1,8 @@
 import Auction from "../models/Auction.js";
 import Bid from "../models/Bids.js";
 import mongoose from "mongoose";
-import AuctionLog from "../models/AuctionLog.js";
+import User from "../models/User.js";
+import { logAuctionEvent } from "../services/logger.service.js";
 
 //helper func to determine status i.e. upcoming/live/completed auction
 function determineStatus(startTime, endTime) {
@@ -59,9 +60,11 @@ async function createAuction(req, res) {
       totalParticipants: 0,
     });
 
-    await AuctionLog.create({
+    const auctionOwner = await User.findById(userId);
+    await logAuctionEvent({
       auctionId: auction._id,
-      userId: userId,
+      userId: auctionOwner._id,
+      userName: auctionOwner.username,
       type: "AUCTION_CREATED",
       details: {
         itemName: name,
@@ -260,9 +263,11 @@ async function editAuction(req, res) {
       {new: true, runValidators: true }
     );
 
-    await AuctionLog.create({
+    const auctionOwner = await User.findById(userId);
+    await logAuctionEvent({
       auctionId: updatedAuction._id,
-      userId,
+      userId: auctionOwner._id,
+      userName: auctionOwner.username,
       type: "AUCTION_UPDATED",
       details: {
         updatedFields: Object.keys(updates),
@@ -300,9 +305,11 @@ async function deleteAuction(req, res) {
       });
     }
 
-    await AuctionLog.create({
+    const auctionOwner = await User.findById(userId);
+    await logAuctionEvent({
       auctionId: auction._id,
-      userId,
+      userId: auctionOwner._id,
+      userName: auctionOwner.username,
       type: "AUCTION_DELETED",
       details: {
         deletedAt: new Date(),
