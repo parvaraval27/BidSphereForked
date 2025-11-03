@@ -3,13 +3,13 @@ import mongoose from "mongoose";
 const auctionLogSchema = new mongoose.Schema({
   auctionId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: "Auction",
+    ref: "auction",
     required: true,
   },
 
   userId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: "User",
+    ref: "user",
     default: null, // null for system events (like auction started)
   },
 

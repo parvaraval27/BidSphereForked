@@ -3,12 +3,12 @@ import mongoose from 'mongoose';
 const bidSchema = new mongoose.Schema({
     auctionId: { 
         type: mongoose.Schema.Types.ObjectId, 
-        ref: 'Auction', 
+        ref: 'auction', 
         required: true 
     },
     userId: { 
         type: mongoose.Schema.Types.ObjectId, 
-        ref: 'User', 
+        ref: 'user', 
         required: true 
     },
     amount: { 
