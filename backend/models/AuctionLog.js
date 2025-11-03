@@ -1,50 +1,48 @@
+// models/AuctionLog.js
 import mongoose from "mongoose";
+
+const logEntrySchema = new mongoose.Schema({
+  userId: { 
+    type: mongoose.Schema.Types.ObjectId, 
+    ref: "user" 
+  },
+  userName: { 
+    type: String,
+    required: true
+  },
+  type: {
+    type: String,
+    enum: [
+      "BID_PLACED",
+      "AUTO_BID_TRIGGERED",
+      "AUTO_BID_SET",
+      "AUTO_BID_EDITED",
+      "AUTO_BID_ACTIVATED",
+      "AUTO_BID_DEACTIVATED",
+      "AUCTION_CREATED",
+      "AUCTION_UPDATED",
+      "AUCTION_DELETED",
+      "AUCTION_STARTED",
+      "AUCTION_ENDED",
+      "AUCTION_CANCELLED",
+    ],
+    required: true
+  },
+  details: { type: Object, default: {} },
+  timestamp: { type: Date, default: Date.now },
+}, 
+{ _id: false } // subdocs don’t need separate IDs
+);
 
 const auctionLogSchema = new mongoose.Schema({
   auctionId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "auction",
     required: true,
+    unique: true
   },
+  logs: [logEntrySchema],
+},{ timestamps: true });
 
-  userId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "user",
-    default: null, // null for system events (like auction started)
-  },
 
-  type: {
-    type: String,
-    enum: [
-      "BID_PLACED",          // manual user bid
-      "AUTO_BID_TRIGGERED",  // autobid placed by system
-      "AUTO_BID_SET",        // user enabled autobid
-      "AUTO_BID_EDITED",     // user updated autobid limit
-      "AUTO_BID_CANCELLED",  // user disabled autobid
-      "AUCTION_CREATED",
-      "AUCTION_STARTED",
-      "AUCTION_ENDED",
-      "AUCTION_CANCELLED",
-      "AUCTION_UPDATED"
-    ],
-    required: true,
-  },
-
-  amount: {
-    type: Number,
-    default: null, // only relevant for BID_PLACED or AUTO_BID_TRIGGERED
-  },
-
-  details: {
-    type: Object, // flexible for storing extra info, e.g. previousBid, incrementStep, etc.
-    default: {},
-  },
-
-}, { timestamps: true });
-
-auctionLogSchema.index({ auctionId: 1, createdAt: -1 });
-auctionLogSchema.index({ userId: 1, auctionId: 1 });
-
-const AuctionLog = mongoose.model("auctionLog", auctionLogSchema);
-
-export default AuctionLog;
+export default mongoose.model("auctionlog", auctionLogSchema);

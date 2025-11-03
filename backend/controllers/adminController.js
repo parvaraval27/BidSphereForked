@@ -1,6 +1,6 @@
 
 async function adminLogin (req, res) {
- 
+try{
   const { email, password } = req.body;
 
   if (req.cookies?.adminToken) {
@@ -31,11 +31,22 @@ async function adminLogin (req, res) {
   
   res.cookie("adminToken", "admin_logged_in");
   return res.json({ message: "Admin Login successful", admin: { email: adminEmail, adminIP: requestIP } });
+}
+catch(err){
+    console.error("admin login error:", err);
+    return res.status(400).json({ success: false, message: err.message });
+}
 };
 
 async function adminLogout (req, res) {
+try{  
   res.clearCookie("adminToken");
   return res.json({ message: "Admin logged out" });
+}
+catch(err){
+    console.error("admin logout error:", err);
+    return res.status(400).json({ success: false, message: err.message });
+}
 };
 
 export { adminLogin, adminLogout };
