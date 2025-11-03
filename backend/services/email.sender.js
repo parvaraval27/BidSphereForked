@@ -1,5 +1,5 @@
 import transporter  from "./email.transporter.js";
-import { Verification_Email_Template, Welcome_Email_Template } from "./email.template.js";
+import { Verification_Email_Template, Welcome_Email_Template, Outbid_Email_Template } from "./email.template.js";
 
 
 const SendVerificationCode = async (email, verificationCode) => {
@@ -32,5 +32,27 @@ const WelcomeEmail = async (email, name) => {
     }
 }
 
+const SendOutBidEmail= async (email, itemName, currentBid, maxLimit, auctionId, title) =>{
+    try{
+        const htmlContent = Outbid_Email_Template
+            .replace("{itemName}", itemName)
+            .replace("{auctionTitle}", title)
+            .replace("{currentBid}", currentBid)
+            .replace("{maxLimit}", maxLimit)
+            .replaceAll("{auctionId}", auctionId);
 
-export { SendVerificationCode, WelcomeEmail }
+        const response = await transporter.sendMail({
+          from: "bidsphere.auction@gmail.com",
+          to: email,
+          subject: `You've Been Outbid on ${itemName} in ${title} - BidSphere`,
+          html: htmlContent,
+        });
+
+        console.log("Outbid email sent successfully", response);
+    } catch (error) {
+        console.log("Error sending outbid email", error);
+    }
+}
+
+
+export { SendVerificationCode, WelcomeEmail, SendOutBidEmail };
