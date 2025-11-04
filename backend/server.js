@@ -1,5 +1,6 @@
 import express from "express";
 import cookieParser from "cookie-parser";
+import cors from "cors";
 import dotenv from "dotenv";
 dotenv.config();
 
@@ -20,6 +21,10 @@ connectDB()
   });
 
 //middlewares
+app.use(cors({
+  origin: (process.env.CLIENT_ORIGIN || "").split(",").filter(Boolean),
+  credentials: true,
+}));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());       
 app.use(cookieParser());      
@@ -27,7 +32,7 @@ import { restrictToLoggedinUserOnly, checkAuth } from "./middleware/authMiddlewa
 import { restrictAdminIP } from "./middleware/adminMiddleware.js";
 
 // home page
-app.get("/", restrictToLoggedinUserOnly, (req, res) => res.send("BidSphere Online Auction System") );
+app.get ("/", restrictToLoggedinUserOnly, (req, res) => res.send("BidSphere Online Auction System") );
 
 // User Route
 import authRoutes from "./routes/authRoutes.js";
@@ -35,7 +40,10 @@ app.use("/bidsphere/user", authRoutes);
 
 // Admin Route
 import adminRoutes from "./routes/adminRoutes.js";
-app.use("/bidsphere/admin", restrictAdminIP , adminRoutes)
+app.use("/bidsphere/admin", (req, res, next) => {
+  if (!process.env.ADMIN_IP) return next();
+  return restrictAdminIP(req, res, next);
+}, adminRoutes)
 
 // Auction Route
 import auctionRoutes from "./routes/auctionRoutes.js";

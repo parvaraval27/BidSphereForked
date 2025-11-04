@@ -1,5 +1,6 @@
-const BASE_USER = "/bidsphere/user";
-const BASE_ADMIN = "/bidsphere/admin";
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "";
+const BASE_USER = `${API_BASE}/bidsphere/user`;
+const BASE_ADMIN = `${API_BASE}/bidsphere/admin`;
 
 async function postJSON(path, body) {
   const res = await fetch(path, {
