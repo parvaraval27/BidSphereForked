@@ -4,7 +4,10 @@ import Navbar from "./components/Navbar";
 import Home from "./pages/Home";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
-import OtpPage from "./pages/Auth"; 
+import VerifyEmail from "./pages/VerifyMail";
+import AdminDashboard from "./pages/AdminDashboard";
+import AdminLogin from "./pages/AdminLogin";
+
 import Contact from "./pages/contact";
 function App() {
   return (
@@ -15,7 +18,10 @@ function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/contact" element={<Contact />} />
-        <Route path="/otp" element={<OtpPage />} />
+        <Route path="/verifyemail" element={<VerifyEmail />} />
+        
+        <Route path="/admin/login" element={<AdminLogin />} />
+        <Route path="/admin/dashboard" element={<AdminDashboard />} />
       </Routes>
     </div>
   );

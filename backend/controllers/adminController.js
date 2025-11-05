@@ -1,7 +1,11 @@
 
 async function adminLogin (req, res) {
- 
+try{
   const { email, password } = req.body;
+
+  if (req.cookies?.adminToken) {
+    return res.status(400).json({ message: "Admin already logged in" });
+  }
 
   if (!email || !password) {
     return res.status(400).json({ message: "Provide email and password" });
@@ -25,7 +29,24 @@ async function adminLogin (req, res) {
     requestIP = requestIP.split("::ffff:")[1];
   }
   
+  res.cookie("adminToken", "admin_logged_in");
   return res.json({ message: "Admin Login successful", admin: { email: adminEmail, adminIP: requestIP } });
+}
+catch(err){
+    console.error("admin login error:", err);
+    return res.status(400).json({ success: false, message: err.message });
+}
 };
 
-export { adminLogin }; 
+async function adminLogout (req, res) {
+try{  
+  res.clearCookie("adminToken");
+  return res.json({ message: "Admin logged out" });
+}
+catch(err){
+    console.error("admin logout error:", err);
+    return res.status(400).json({ success: false, message: err.message });
+}
+};
+
+export { adminLogin, adminLogout };

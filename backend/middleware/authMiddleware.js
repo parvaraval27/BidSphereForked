@@ -1,7 +1,7 @@
 import { getUser } from "../services/auth.js";
 
 async function restrictToLoggedinUserOnly (req, res, next){
-    
+  try {
     const userToken = req.cookies?.token;
 
     if(!userToken) 
@@ -14,16 +14,34 @@ async function restrictToLoggedinUserOnly (req, res, next){
     
     req.user = user;
     next();
+  }
+  catch (err) {
+    console.error("Auth middleware error:", err.message);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: err.message,
+    });
+  }
 }
 
 async function checkAuth (req, res, next){
-    
+  try {  
     const userToken = req.cookies?.token;
 
     const user = await getUser(userToken);
     
     req.user = user;
     next();
+  }
+  catch (err) {
+    console.error("Auth middleware error:", err.message);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: err.message,
+    });
+  }
 }
 
 export {

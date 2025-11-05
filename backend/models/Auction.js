@@ -1,0 +1,74 @@
+import mongoose from "mongoose";
+
+const auctionSchema = new mongoose.Schema({
+    title: { 
+        type: String, 
+        required: true, 
+        trim: true 
+    },
+    item: {
+        name: { type: String, required: true },
+        description: { type: String },
+        category: { type: String },
+        images: [{ type: String }],
+        metadata: { type: Object },
+        condition: { type: String, enum: ["new", "like new", "good", "fair"]},
+    },
+
+    createdBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "user",
+        required: true,
+    },
+    status: {
+        type: String, 
+        enum: ["UPCOMING", "LIVE", "ENDED", "CANCELLED"],
+        default: "LIVE",
+    },
+    startingPrice: { 
+        type: Number, 
+        required: true 
+    },
+    minIncrement: { 
+        type: Number, 
+        required: true 
+    },
+    currentBid: { 
+        type: Number, 
+        default: 0 
+    },
+    buyItNowPrice: { 
+        type: Number, 
+    },
+
+    currentWinner: { 
+        type: mongoose.Schema.Types.ObjectId, 
+        ref: 'user' 
+    },
+    startTime: { 
+        type: Date, 
+        required: true 
+    },
+    endTime: { 
+        type: Date, 
+        required: true 
+    },
+
+    autoBidders: [
+        {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "user",
+        },
+    ],
+
+    totalBids: { type: Number, default: 0 },
+    totalParticipants: { type: Number, default: 0 },
+}, { timestamps: true });
+  
+auctionSchema.index({ status: 1, endTime: 1 });
+auctionSchema.index({ createdBy: 1 });
+auctionSchema.index({ startTime: 1 });
+
+const Auction = mongoose.model("auction", auctionSchema);
+
+export default Auction;

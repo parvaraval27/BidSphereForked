@@ -1,0 +1,339 @@
+import Auction from "../models/Auction.js";
+import Bid from "../models/Bids.js";
+import mongoose from "mongoose";
+import User from "../models/User.js";
+import { logAuctionEvent } from "../services/logger.service.js";
+
+//helper func to determine status i.e. upcoming/live/completed auction
+function determineStatus(startTime, endTime) {
+  const now=new Date();
+  const s=new Date(startTime);
+  const e=new Date(endTime);
+  if(now < s) return "UPCOMING";
+  if(now >= s && now < e) return "LIVE";
+  return "ENDED";
+}
+
+//POST /bidsphere/auctions/create
+async function createAuction(req, res) {
+  try {
+    const {
+      title,
+      name,
+      description,
+      images=[],
+      category,
+      condition,
+      metadata = {},
+      startingPrice,
+      minIncrement,
+      buyItNowPrice,
+      startTime,
+      endTime,
+    }=req.body;
+
+    const userId=req.user._id;
+    const start=new Date(startTime);
+    const end=new Date(endTime);
+    const status=determineStatus(start, end);
+
+    const auction = await Auction.create({
+      title: String(title).trim(),
+      item: {
+        name: String(name).trim(),
+        description: description || undefined,
+        category: category || undefined,
+        condition: condition || undefined,
+        images: Array.isArray(images) ? images : [],
+        metadata: metadata || {},
+      },
+      createdBy: userId,
+      status,
+      startingPrice: Number(startingPrice),
+      minIncrement: Number(minIncrement),
+      currentBid: 0,
+      buyItNowPrice: buyItNowPrice !== undefined ? Number(buyItNowPrice) : undefined,
+      startTime: start,
+      endTime: end,
+      autoBidders: [],
+      totalBids: 0,
+      totalParticipants: 0,
+    });
+
+    const auctionOwner = await User.findById(userId);
+    await logAuctionEvent({
+      auctionId: auction._id,
+      userId: auctionOwner._id,
+      userName: auctionOwner.username,
+      type: "AUCTION_CREATED",
+      details: {
+        itemName: name,
+        startingPrice,
+        minIncrement,
+        startTime,
+        endTime,
+      },
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: "Auction created successfully",
+      auction,
+    });
+  } catch (err) {
+    console.error("createAuction error:", err);
+    return res.status(400).json({ success: false, message: err.message });
+  }
+}
+
+//GET /bidsphere/auctions/mine
+async function getMyAuctions(req, res) {
+  try {
+    const userId = req.user._id;
+    const { status, page = 1, limit = 20 } = req.query;
+
+    const filter = { createdBy: userId };
+    if (status) filter.status = status.toUpperCase();
+
+    const skip=(Number(page) - 1) * Number(limit);
+
+    const auctions=await Auction.find(filter)
+      .sort({createdAt: -1 })
+      .skip(skip)
+      .limit(Number(limit))
+      .select("title item.name item.images startTime endTime currentBid status startingPrice totalBids")
+      .lean();
+
+    const total = await Auction.countDocuments(filter);
+
+    return res.status(200).json({
+      success: true,
+      auctions,
+      pagination: {
+        total,
+        page: Number(page),
+        limit: Number(limit),
+        totalPages: Math.ceil(total / Number(limit)),
+      },
+    });
+  } catch (err) {
+    console.error("getMyAuctions error:", err);
+    return res.status(400).json({ success: false, message: err.message });
+  }
+}
+
+//GET /bidsphere/auctions/:auctionId
+async function getAuctionById(req, res) {
+  try {
+    const {auctionId }=req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(auctionId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid auction id",
+      });
+    }
+
+    const auction=await Auction.findById(auctionId)
+      .populate("createdBy", "name email")
+      .populate("currentWinner", "name email")
+      .lean();
+
+    if (!auction) {
+      return res.status(404).json({
+        success: false,
+        message: "Auction not found",
+      });
+    }
+
+    const topBids=await Bid.find({auctionId: auction._id })
+      .sort({amount: -1 })
+      .limit(10)// top 10 bids fetched rn
+      .select("bidderId amount timestamp")
+      .populate("bidderId", "name email")
+      .lean();
+
+    return res.status(200).json({
+      success: true,
+      auction,
+      topBids,
+    });
+  }
+  catch (err) {
+    console.error("getAuctionById error:", err);
+    return res.status(400).json({ success: false, message: err.message });
+  }
+}
+
+//GET /bidsphere/auctions
+async function listAuctions(req, res) {
+  try {
+    const { status, category, page = 1, limit = 20, sort = "-createdAt" } = req.query;
+
+    const filter = {};
+    if (status) filter.status = status.toUpperCase();
+    if (category) filter["item.category"] = category;
+
+    const skip = (Number(page) - 1) * Number(limit);
+
+    const auctions = await Auction.find(filter)
+      .sort(sort)
+      .skip(skip)
+      .limit(Number(limit))
+      .select("title item.name item.images startTime endTime currentBid status startingPrice totalBids")
+      .populate("createdBy", "name")
+      .lean();
+
+    const total = await Auction.countDocuments(filter);
+
+    return res.status(200).json({
+      success: true,
+      auctions,
+      pagination: {
+        total,
+        page: Number(page),
+        limit: Number(limit),
+        totalPages: Math.ceil(total / Number(limit)),
+      },
+    });
+  } catch (err) {
+    console.error("listAuctions error:", err);
+    return res.status(400).json({ success: false, message: err.message });
+  }
+}
+
+//PUT /bidsphere/auctions/:auctionId
+async function editAuction(req, res) {
+  try {
+    const {auctionId }=req.params;
+
+    const existing = req.auction;
+    if (!existing) {
+      return res.status(404).json({
+        success: false,
+        message: "Auction not found",
+      });
+    }
+
+    const updates = {};
+    
+    if (req.body.title || req.body.name || req.body.description || req.body.category || req.body.condition || req.body.images || req.body.metadata) {
+      updates.item = { ...existing.item };
+      if (req.body.title !== undefined) { updates.title = String(req.body.title).trim();}
+      if (req.body.name) updates.item.name = String(req.body.name).trim();
+      if (req.body.description !== undefined) updates.item.description = String(req.body.description);
+      if (req.body.category !== undefined) updates.item.category = String(req.body.category);
+      if (req.body.condition !== undefined) updates.item.condition = String(req.body.condition);
+      if (req.body.images !== undefined) updates.item.images = Array.isArray(req.body.images) ? req.body.images : [];
+      if (req.body.metadata !== undefined) updates.item.metadata = req.body.metadata;
+    }
+
+    if (req.body.startingPrice !== undefined) {
+      updates.startingPrice = Number(req.body.startingPrice);
+    }
+    if (req.body.minIncrement !== undefined) {
+      updates.minIncrement = Number(req.body.minIncrement);
+    }
+    if (req.body.buyItNowPrice !== undefined) {
+      const newBuyItNow = Number(req.body.buyItNowPrice);
+      if (newBuyItNow <= existing.currentBid) {
+        return res.status(400).json({ 
+          success: false,
+          message: "buyItNowPrice must be greater than current bid" 
+        });
+      }
+      updates.buyItNowPrice = newBuyItNow;
+    }
+    if (req.body.startTime !== undefined) {
+      updates.startTime = new Date(req.body.startTime);
+    }
+    if (req.body.endTime !== undefined) {
+      updates.endTime = new Date(req.body.endTime);
+    }
+
+    if (updates.startTime || updates.endTime) {
+      const newStart = updates.startTime || existing.startTime;
+      const newEnd = updates.endTime || existing.endTime;
+      updates.status = determineStatus(newStart, newEnd);
+    }
+
+    const updatedAuction=await Auction.findByIdAndUpdate(
+      auctionId,
+      {$set: updates},
+      {new: true, runValidators: true }
+    );
+
+    const auctionOwner = await User.findById(userId);
+    await logAuctionEvent({
+      auctionId: updatedAuction._id,
+      userId: auctionOwner._id,
+      userName: auctionOwner.username,
+      type: "AUCTION_UPDATED",
+      details: {
+        updatedFields: Object.keys(updates),
+        newValues: updates,
+      },
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Auction updated successfully",
+      auction: updatedAuction,
+    });
+  } catch (err) {
+    console.error("editAuction error:", err);
+    return res.status(400).json({ success: false, message: err.message });
+  }
+}
+
+//DELETE /bidsphere/auctions/:auctionId
+async function deleteAuction(req, res) {
+  try {
+    const { auctionId } = req.params;
+    const userId = req.user._id;
+
+    const auction = await Auction.findByIdAndUpdate(
+      auctionId,
+      { $set: { status: "CANCELLED" } },
+      { new: true }
+    );
+
+    if (!auction) {
+      return res.status(404).json({
+        success: false,
+        message: "Auction not found",
+      });
+    }
+
+    const auctionOwner = await User.findById(userId);
+    await logAuctionEvent({
+      auctionId: auction._id,
+      userId: auctionOwner._id,
+      userName: auctionOwner.username,
+      type: "AUCTION_DELETED",
+      details: {
+        deletedAt: new Date(),
+        auctionData: auction, 
+      },
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Auction cancelled successfully",
+      auction,
+    });
+  }
+  catch (err) {
+    console.error("deleteAuction error:", err);
+    return res.status(400).json({ success: false, message: err.message });
+  }
+}
+
+export {
+  createAuction,
+  getMyAuctions,
+  getAuctionById,
+  listAuctions,
+  editAuction,
+  deleteAuction,
+};

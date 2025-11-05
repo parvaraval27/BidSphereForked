@@ -1,8 +1,7 @@
 import React, { useState } from "react";
 import registerImg from "../assets/register.jpg";
-import { Link } from "react-router-dom";
-import { useNavigate } from "react-router-dom";
-
+import { Link, useNavigate } from "react-router-dom";
+import { registerUser } from "../api";
 
 function Register() {
   const navigate = useNavigate();
@@ -12,11 +11,13 @@ function Register() {
     password: "",
   });
 
+  const navigate = useNavigate();
+
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
     if (!form.name || !form.email || !form.password) {
@@ -35,8 +36,21 @@ function Register() {
       alert("Password must be at least 8 characters long.");
       return;
     }
-    navigate("/otp");
-    setForm({ name: "", email: "", password: "" });
+
+    try {
+      const res = await registerUser({
+        username: form.name,
+        email: form.email,
+        password: form.password,
+      });
+
+      alert(res.message || "Verification OTP sent to your email");
+      navigate("/verifyemail", { state: { email: form.email } });
+    } catch (err) {
+      alert(err.message || "Registration failed");
+    } finally {
+      setForm({ name: "", email: "", password: "" });
+    }
   };
 
   return (
