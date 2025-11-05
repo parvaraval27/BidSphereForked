@@ -1,84 +1,99 @@
 import Auction from "../models/Auction.js";
 import Bid from "../models/Bids.js";
 import mongoose from "mongoose";
+import User from "../models/User.js";
+import { logAuctionEvent } from "../services/logger.service.js";
 
 //helper func to determine status i.e. upcoming/live/completed auction
 function determineStatus(startTime, endTime) {
   const now=new Date();
   const s=new Date(startTime);
   const e=new Date(endTime);
-  if(now < s) return "upcoming";
-  if(now >= s && now < e) return "live";
-  return "completed";
+  if(now < s) return "UPCOMING";
+  if(now >= s && now < e) return "LIVE";
+  return "ENDED";
 }
 
-//POST /bidsphere/auctions
+//POST /bidsphere/auctions/create
 async function createAuction(req, res) {
   try {
     const {
       title,
-      description="",
+      name,
+      description,
       images=[],
-      category="",
-      minimumPrice,
-      reservePrice,
+      category,
+      condition,
+      metadata = {},
+      startingPrice,
+      minIncrement,
+      buyItNowPrice,
       startTime,
       endTime,
-      productCondition,
     }=req.body;
 
-    if(!req.user || !req.user._id)return res.status(401).json({message: "Not authenticated" });
-
+    const userId=req.user._id;
     const start=new Date(startTime);
     const end=new Date(endTime);
     const status=determineStatus(start, end);
 
-    const auctionDoc=new Auction({
-      sellerId: req.user._id,
+    const auction = await Auction.create({
       title: String(title).trim(),
-      description: String(description),
-      images: Array.isArray(images) ? images : [],
-      category: String(category || ""),
-      minimumPrice: Number(minimumPrice),
-      reservePrice: reservePrice !== undefined ? Number(reservePrice) : undefined,
+      item: {
+        name: String(name).trim(),
+        description: description || undefined,
+        category: category || undefined,
+        condition: condition || undefined,
+        images: Array.isArray(images) ? images : [],
+        metadata: metadata || {},
+      },
+      createdBy: userId,
+      status,
+      startingPrice: Number(startingPrice),
+      minIncrement: Number(minIncrement),
       currentBid: 0,
-      highestBidderId: undefined,
+      buyItNowPrice: buyItNowPrice !== undefined ? Number(buyItNowPrice) : undefined,
       startTime: start,
       endTime: end,
-      status,
-      productCondition,
-      historyLog: [
-        {
-          action: "created",
-          userId: req.user._id,
-          details: {title, minimumPrice, startTime: start.toISOString(), endTime: end.toISOString(), productCondition },
-        },
-      ]
+      autoBidders: [],
+      totalBids: 0,
+      totalParticipants: 0,
     });
 
-    const saved=await auctionDoc.save();
-    return res.status(201).json({message: "Auction created", auction: saved });
-  }
-  catch (err) {
+    const auctionOwner = await User.findById(userId);
+    await logAuctionEvent({
+      auctionId: auction._id,
+      userId: auctionOwner._id,
+      userName: auctionOwner.username,
+      type: "AUCTION_CREATED",
+      details: {
+        itemName: name,
+        startingPrice,
+        minIncrement,
+        startTime,
+        endTime,
+      },
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: "Auction created successfully",
+      auction,
+    });
+  } catch (err) {
     console.error("createAuction error:", err);
-    if(err?.name==="ValidationError") {
-      const messages=Object.values(err.errors).map((e) => e.message).join("; ");
-      return res.status(400).json({message: messages || "Validation error" });
-    }
-    return res.status(500).json({message: "Server error" });
+    return res.status(400).json({ success: false, message: err.message });
   }
 }
 
 //GET /bidsphere/auctions/mine
 async function getMyAuctions(req, res) {
   try {
-    if(!req.user || !req.user._id)return res.status(401).json({message: "Not authenticated" });
+    const userId = req.user._id;
+    const { status, page = 1, limit = 20 } = req.query;
 
-    const sellerId=req.user._id;
-    const {status, page=1, limit=20 }=req.query;
-
-    const filter={sellerId: sellerId };
-    if(status) filter.status=status;
+    const filter = { createdBy: userId };
+    if (status) filter.status = status.toUpperCase();
 
     const skip=(Number(page) - 1) * Number(limit);
 
@@ -86,14 +101,24 @@ async function getMyAuctions(req, res) {
       .sort({createdAt: -1 })
       .skip(skip)
       .limit(Number(limit))
-      .select("title startTime endTime currentBid status minimumPrice productCondition")
+      .select("title item.name item.images startTime endTime currentBid status startingPrice totalBids")
       .lean();
 
-    return res.status(200).json({auctions });
-  }
-  catch (err) {
+    const total = await Auction.countDocuments(filter);
+
+    return res.status(200).json({
+      success: true,
+      auctions,
+      pagination: {
+        total,
+        page: Number(page),
+        limit: Number(limit),
+        totalPages: Math.ceil(total / Number(limit)),
+      },
+    });
+  } catch (err) {
     console.error("getMyAuctions error:", err);
-    return res.status(500).json({message: "Server error" });
+    return res.status(400).json({ success: false, message: err.message });
   }
 }
 
@@ -102,84 +127,162 @@ async function getAuctionById(req, res) {
   try {
     const {auctionId }=req.params;
 
-    if(!mongoose.Types.ObjectId.isValid(auctionId)) {
-      return res.status(400).json({message: "Invalid auction id" });
+    if (!mongoose.Types.ObjectId.isValid(auctionId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid auction id",
+      });
     }
 
-    const auction=await Auction.findById(auctionId).lean();
-    if(!auction) return res.status(404).json({message: "Auction not found" });
+    const auction=await Auction.findById(auctionId)
+      .populate("createdBy", "name email")
+      .populate("currentWinner", "name email")
+      .lean();
+
+    if (!auction) {
+      return res.status(404).json({
+        success: false,
+        message: "Auction not found",
+      });
+    }
 
     const topBids=await Bid.find({auctionId: auction._id })
       .sort({amount: -1 })
       .limit(10)// top 10 bids fetched rn
       .select("bidderId amount timestamp")
+      .populate("bidderId", "name email")
       .lean();
 
-    return res.status(200).json({auction, topBids });
+    return res.status(200).json({
+      success: true,
+      auction,
+      topBids,
+    });
   }
   catch (err) {
     console.error("getAuctionById error:", err);
-    return res.status(500).json({message: "Server error" });
+    return res.status(400).json({ success: false, message: err.message });
+  }
+}
+
+//GET /bidsphere/auctions
+async function listAuctions(req, res) {
+  try {
+    const { status, category, page = 1, limit = 20, sort = "-createdAt" } = req.query;
+
+    const filter = {};
+    if (status) filter.status = status.toUpperCase();
+    if (category) filter["item.category"] = category;
+
+    const skip = (Number(page) - 1) * Number(limit);
+
+    const auctions = await Auction.find(filter)
+      .sort(sort)
+      .skip(skip)
+      .limit(Number(limit))
+      .select("title item.name item.images startTime endTime currentBid status startingPrice totalBids")
+      .populate("createdBy", "name")
+      .lean();
+
+    const total = await Auction.countDocuments(filter);
+
+    return res.status(200).json({
+      success: true,
+      auctions,
+      pagination: {
+        total,
+        page: Number(page),
+        limit: Number(limit),
+        totalPages: Math.ceil(total / Number(limit)),
+      },
+    });
+  } catch (err) {
+    console.error("listAuctions error:", err);
+    return res.status(400).json({ success: false, message: err.message });
   }
 }
 
 //PUT /bidsphere/auctions/:auctionId
-async function updateAuction(req, res) {
+async function editAuction(req, res) {
   try {
     const {auctionId }=req.params;
 
-    const existing=await Auction.findById(auctionId);
-    if(!existing) return res.status(404).json({message: "Auction not found" });
-
-    const bidsCount=await Bid.countDocuments({auctionId: existing._id });
-    if(bidsCount > 0 && req.body.minimumPrice !== undefined) {
-      return res.status(403).json({message: "Cannot change minimumPrice after bids have been placed" });
+    const existing = req.auction;
+    if (!existing) {
+      return res.status(404).json({
+        success: false,
+        message: "Auction not found",
+      });
     }
 
-    const allowed = [
-      "title","description","images","category","minimumPrice","reservePrice","startTime","endTime","productCondition"
-    ];
+    const updates = {};
+    
+    if (req.body.title || req.body.name || req.body.description || req.body.category || req.body.condition || req.body.images || req.body.metadata) {
+      updates.item = { ...existing.item };
+      if (req.body.title !== undefined) { updates.title = String(req.body.title).trim();}
+      if (req.body.name) updates.item.name = String(req.body.name).trim();
+      if (req.body.description !== undefined) updates.item.description = String(req.body.description);
+      if (req.body.category !== undefined) updates.item.category = String(req.body.category);
+      if (req.body.condition !== undefined) updates.item.condition = String(req.body.condition);
+      if (req.body.images !== undefined) updates.item.images = Array.isArray(req.body.images) ? req.body.images : [];
+      if (req.body.metadata !== undefined) updates.item.metadata = req.body.metadata;
+    }
 
-    const updates={};
-    const changes={};
-    allowed.forEach((field) => {
-      if(Object.prototype.hasOwnProperty.call(req.body, field)) {
-        const newVal=req.body[field];
-
-        if(field==="startTime" || field==="endTime") updates[field]=new Date(newVal);
-        else if(field==="minimumPrice" || field==="reservePrice") updates[field]=newVal !== undefined ? Number(newVal) : newVal;
-        else updates[field]=newVal;
-
-        changes[field]={from: existing[field], to: updates[field] };
+    if (req.body.startingPrice !== undefined) {
+      updates.startingPrice = Number(req.body.startingPrice);
+    }
+    if (req.body.minIncrement !== undefined) {
+      updates.minIncrement = Number(req.body.minIncrement);
+    }
+    if (req.body.buyItNowPrice !== undefined) {
+      const newBuyItNow = Number(req.body.buyItNowPrice);
+      if (newBuyItNow <= existing.currentBid) {
+        return res.status(400).json({ 
+          success: false,
+          message: "buyItNowPrice must be greater than current bid" 
+        });
       }
-    });
-
-    if(updates.startTime || updates.endTime) {
-      const newStart=updates.startTime || existing.startTime;
-      const newEnd=updates.endTime || existing.endTime;
-      updates.status=determineStatus(newStart, newEnd);
+      updates.buyItNowPrice = newBuyItNow;
+    }
+    if (req.body.startTime !== undefined) {
+      updates.startTime = new Date(req.body.startTime);
+    }
+    if (req.body.endTime !== undefined) {
+      updates.endTime = new Date(req.body.endTime);
     }
 
-    updates.updatedAt=new Date();
+    if (updates.startTime || updates.endTime) {
+      const newStart = updates.startTime || existing.startTime;
+      const newEnd = updates.endTime || existing.endTime;
+      updates.status = determineStatus(newStart, newEnd);
+    }
 
-    const updated=await Auction.findByIdAndUpdate(
+    const updatedAuction=await Auction.findByIdAndUpdate(
       auctionId,
-      {
-        $set: updates,
-        $push: {historyLog: {action: "updated", userId: req.user._id, details: changes } },
-      },
+      {$set: updates},
       {new: true, runValidators: true }
     );
 
-    return res.status(200).json({message: "Auction updated", auction: updated });
-  }
-  catch (err) {
-    console.error("updateAuction error:", err);
-    if(err?.name==="ValidationError") {
-      const messages=Object.values(err.errors).map((e) => e.message).join("; ");
-      return res.status(400).json({message: messages || "Validation error" });
-    }
-    return res.status(500).json({message: "Server error" });
+    const auctionOwner = await User.findById(userId);
+    await logAuctionEvent({
+      auctionId: updatedAuction._id,
+      userId: auctionOwner._id,
+      userName: auctionOwner.username,
+      type: "AUCTION_UPDATED",
+      details: {
+        updatedFields: Object.keys(updates),
+        newValues: updates,
+      },
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Auction updated successfully",
+      auction: updatedAuction,
+    });
+  } catch (err) {
+    console.error("editAuction error:", err);
+    return res.status(400).json({ success: false, message: err.message });
   }
 }
 
@@ -187,20 +290,50 @@ async function updateAuction(req, res) {
 async function deleteAuction(req, res) {
   try {
     const { auctionId } = req.params;
+    const userId = req.user._id;
 
-    const updated = await Auction.findByIdAndUpdate(
+    const auction = await Auction.findByIdAndUpdate(
       auctionId,
-      { $set: { status: "cancelled" }, $push: { historyLog: { action: "cancelled", userId: req.user._id, details: { reason: req.body?.reason || "cancelled by seller" } } } },
+      { $set: { status: "CANCELLED" } },
       { new: true }
     );
 
-    if (!updated) return res.status(404).json({ message: "Auction not found" });
-    return res.status(200).json({ message: "Auction cancelled", auction: updated });
+    if (!auction) {
+      return res.status(404).json({
+        success: false,
+        message: "Auction not found",
+      });
+    }
+
+    const auctionOwner = await User.findById(userId);
+    await logAuctionEvent({
+      auctionId: auction._id,
+      userId: auctionOwner._id,
+      userName: auctionOwner.username,
+      type: "AUCTION_DELETED",
+      details: {
+        deletedAt: new Date(),
+        auctionData: auction, 
+      },
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Auction cancelled successfully",
+      auction,
+    });
   }
   catch (err) {
-    console.error("deleteAuction:", err);
-    return res.status(500).json({ message: "Server error" });
+    console.error("deleteAuction error:", err);
+    return res.status(400).json({ success: false, message: err.message });
   }
 }
 
-export {createAuction, getMyAuctions, getAuctionById, updateAuction, deleteAuction };
+export {
+  createAuction,
+  getMyAuctions,
+  getAuctionById,
+  listAuctions,
+  editAuction,
+  deleteAuction,
+};
