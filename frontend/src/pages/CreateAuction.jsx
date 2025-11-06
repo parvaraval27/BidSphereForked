@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
+import { createAuction, uploadImagesFormData } from "../api";
 
 function FeeStructure() {
   return (
@@ -45,7 +46,8 @@ export default function CreateAuction() {
 
   const [savingDraft, setSavingDraft] = useState(false);
   const [successModalOpen, setSuccessModalOpen] = useState(false);
-
+  const [submitting, setSubmitting] = useState(false);
+  const [createdAuctionId, setCreatedAuctionId] = useState(null);
   const categories = [
     { value: "", label: "Select" },
     { value: "electronics", label: "Electronics" },
@@ -53,6 +55,7 @@ export default function CreateAuction() {
     { value: "collectibles", label: "Collectibles" },
     { value: "art", label: "Art" },
     { value: "furniture", label: "Furniture" },
+    { value: "other", label: "Other" }
   ];
 
   useEffect(() => {
@@ -219,7 +222,7 @@ export default function CreateAuction() {
     }, 600);
   }
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault();
 
     if (!form.auctionName.trim()) return alert("Please enter auction name.");
@@ -243,21 +246,45 @@ export default function CreateAuction() {
     if (isNaN(endDt.getTime())) return alert("Invalid end date/time.");
     if (endDt <= startDt) return alert("End date/time must be after start date/time.");
 
-    const payload = {
-      ...form,
-      startingBidPrice: form.startingBidPrice === "" ? null : Number(form.startingBidPrice),
-      reservePrice: form.reservePrice === "" ? null : Number(form.reservePrice),
-      buyItNowPrice: form.buyItNowPrice === "" ? null : Number(form.buyItNowPrice),
-      bidIncrement: form.bidIncrement === "" ? null : Number(form.bidIncrement),
+    const apiPayload = {
+      title: form.auctionName,
+      name: form.itemName,
+      description: form.itemDescription,
       images: images.map((f) => f.name),
-      resolvedStart: startDt.toISOString(),
-      resolvedEnd: endDt.toISOString(),
+      category: form.category,
+      condition: form.condition,
+      metadata: { conditionNotes: form.conditionNotes },
+      startingPrice: form.startingBidPrice === "" ? null : Number(form.startingBidPrice),
+      minIncrement: form.bidIncrement === "" ? null : Number(form.bidIncrement),
+      buyItNowPrice: form.buyItNowPrice === "" ? null : Number(form.buyItNowPrice),
+      startTime: startDt.toISOString(),
+      endTime: endDt.toISOString(),
     };
 
-    console.log("Create Auction payload:", payload);
+    console.log("Create Auction payload:", apiPayload);
 
-    // show success modal instead of alert
-    setSuccessModalOpen(true);
+    setSubmitting(true);
+    try {
+      // if there are files selected, upload them first and replace images with server paths
+      if (images && images.length > 0) {
+        const formData = new FormData();
+        images.forEach((f) => formData.append("images", f));
+        const uploadRes = await uploadImagesFormData(formData);
+        if (uploadRes?.files) {
+          apiPayload.images = uploadRes.files; // server returns array of absolute URLs
+        }
+      }
+
+      const res = await createAuction(apiPayload);
+      setSubmitting(false);
+      // backend returns { success, message, auction }
+      setCreatedAuctionId(res?.auction?._id || null);
+      setSuccessModalOpen(true);
+    } catch (err) {
+      setSubmitting(false);
+      console.error("createAuction error:", err);
+      alert(err?.message || String(err) || "Failed to create auction");
+    }
   }
 
   return (
@@ -580,7 +607,7 @@ export default function CreateAuction() {
                 </button>
 
                 <button type="submit" className="rounded bg-blue-600 px-5 py-2 text-sm font-medium text-white hover:opacity-95">
-                  Create Auction
+                  {submitting ? "Creating..." : "Create Auction"}
                 </button>
               </div>
             </div>
@@ -610,7 +637,14 @@ export default function CreateAuction() {
             <p className="mt-2 text-sm text-gray-600">Your auction has been created.</p>
             <div className="mt-4 flex justify-end gap-3">
               <button
-                onClick={() => setSuccessModalOpen(false)}
+                onClick={() => {
+                  // after creating an auction, navigate to home with created id so Home can fetch details from backend
+                  if (createdAuctionId) {
+                    globalThis.location.href = `/?created=${createdAuctionId}`;
+                    return;
+                  }
+                  globalThis.location.href = "/";
+                }}
                 className="px-4 py-2 rounded border border-gray-300 bg-white text-sm hover:bg-gray-50"
               >
                 OK

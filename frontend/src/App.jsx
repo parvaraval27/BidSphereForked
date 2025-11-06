@@ -9,6 +9,8 @@ import AdminDashboard from "./pages/AdminDashboard";
 import AdminLogin from "./pages/AdminLogin";
 import CreateAuction from "./pages/CreateAuction";
 import EditAuctionDraft from "./pages/EditAuctionDraft";
+import AuctionDetails from "./pages/AuctionDetails";
+import UserDashboard from "./pages/UserDashboard";
 
 
 import Contact from "./pages/contact";
@@ -23,6 +25,8 @@ function App() {
         <Route path="/contact" element={<Contact />} />
         <Route path="/verifyemail" element={<VerifyEmail />} />
         <Route path="/create-auction" element={<CreateAuction />} />
+  <Route path="/auction/:id" element={<AuctionDetails />} />
+    <Route path="/dashboard" element={<UserDashboard />} />
         <Route path="/admin/login" element={<AdminLogin />} />
         <Route path="/admin/dashboard" element={<AdminDashboard />} />
         <Route path="/edit-auction-draft/:id" element={<EditAuctionDraft />} />

@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { getAuction, saveAuctionDraft, updateAuction, deleteAuction } from "../api";
+import { getAuction, saveAuctionDraft, updateAuction, deleteAuction, uploadImagesFormData } from "../api";
 
 function FeeStructure() {
   return (
@@ -60,6 +60,7 @@ export default function EditAuctionDraftWithId() {
     { value: "collectibles", label: "Collectibles" },
     { value: "art", label: "Art" },
     { value: "furniture", label: "Furniture" },
+    { value: "others", label: "Others" },
   ];
 
   function sanitizeCurrency(raw) {
@@ -94,31 +95,32 @@ export default function EditAuctionDraftWithId() {
       try {
         const data = await getAuction(id);
         if (!mounted) return;
+        const auction = data?.auction || data || {};
+
         setForm({
-          auctionName: data.auctionName || "",
-          itemName: data.itemName || "",
-          itemDescription: data.itemDescription || "",
-          category: data.category || "",
-          condition: data.condition || "like-new",
-          conditionNotes: data.conditionNotes || "",
-          startingBidPrice: data.startingBidPrice != null ? String(data.startingBidPrice) : "",
-          reservePrice: data.reservePrice != null ? String(data.reservePrice) : "",
-          buyItNowPrice: data.buyItNowPrice != null ? String(data.buyItNowPrice) : "",
-          bidIncrement: data.bidIncrement != null ? String(data.bidIncrement) : "",
-          startTiming: data.resolvedStart ? "schedule" : "immediate",
-          scheduleStartDate: data.resolvedStart ? new Date(data.resolvedStart).toISOString().slice(0, 10) : "",
-          scheduleStartTime: data.resolvedStart ? new Date(data.resolvedStart).toISOString().slice(11, 16) : "",
-          scheduleEndDate: data.resolvedEnd ? new Date(data.resolvedEnd).toISOString().slice(0, 10) : "",
-          scheduleEndTime: data.resolvedEnd ? new Date(data.resolvedEnd).toISOString().slice(11, 16) : "",
+          auctionName: auction.title || "",
+          itemName: auction.item?.name || "",
+          itemDescription: auction.item?.description || "",
+          category: auction.item?.category || "",
+          condition: (auction.item?.condition || "like new").replace(/\s+/g, "-") || "like-new",
+          conditionNotes: auction.item?.metadata?.conditionNotes || "",
+          startingBidPrice: auction.startingPrice != null ? String(auction.startingPrice) : "",
+          reservePrice: "",
+          buyItNowPrice: auction.buyItNowPrice != null ? String(auction.buyItNowPrice) : "",
+          bidIncrement: auction.minIncrement != null ? String(auction.minIncrement) : "",
+          startTiming: auction.startTime ? "schedule" : "immediate",
+          scheduleStartDate: auction.startTime ? new Date(auction.startTime).toISOString().slice(0, 10) : "",
+          scheduleStartTime: auction.startTime ? new Date(auction.startTime).toISOString().slice(11, 16) : "",
+          scheduleEndDate: auction.endTime ? new Date(auction.endTime).toISOString().slice(0, 10) : "",
+          scheduleEndTime: auction.endTime ? new Date(auction.endTime).toISOString().slice(11, 16) : "",
         });
 
-        const imgs =
-          (data.images || []).map((it, idx) =>
-            typeof it === "string"
-              ? { id: `existing-${idx}`, url: it, filename: it.split("/").pop() }
-              : { id: it.id || `existing-${idx}`, url: it.url || it.path, filename: it.filename || it.name || `img-${idx}` }
-          ) || [];
-        setExistingImages(imgs);
+        const imgs = (auction.item?.images || []).map((it, idx) =>
+          typeof it === "string"
+            ? { id: `existing-${idx}`, url: it, filename: it.split("/").pop() }
+            : { id: it.id || `existing-${idx}`, url: it.url || it.path, filename: it.filename || it.name || `img-${idx}` }
+        );
+        setExistingImages(imgs || []);
       } catch (err) {
         setErrorMsg(String(err.message));
       } finally {
@@ -260,24 +262,49 @@ export default function EditAuctionDraftWithId() {
       if (isNaN(endDt.getTime())) return alert("Invalid end date/time.");
       if (endDt <= startDt) return alert("End date/time must be after start date/time.");
 
-      const fd = new FormData();
-      fd.append("auctionName", form.auctionName);
-      fd.append("itemName", form.itemName);
-      fd.append("itemDescription", form.itemDescription);
-      fd.append("category", form.category);
-      fd.append("condition", form.condition);
-      fd.append("conditionNotes", form.conditionNotes);
-      fd.append("startingBidPrice", form.startingBidPrice === "" ? "" : String(Number(form.startingBidPrice)));
-      fd.append("reservePrice", form.reservePrice === "" ? "" : String(Number(form.reservePrice)));
-      fd.append("buyItNowPrice", form.buyItNowPrice === "" ? "" : String(Number(form.buyItNowPrice)));
-      fd.append("bidIncrement", form.bidIncrement === "" ? "" : String(Number(form.bidIncrement)));
-      fd.append("startTiming", form.startTiming);
-      if (form.startTiming === "schedule") fd.append("resolvedStart", new Date(`${form.scheduleStartDate}T${form.scheduleStartTime}`).toISOString());
-      fd.append("resolvedEnd", new Date(`${form.scheduleEndDate}T${form.scheduleEndTime}`).toISOString());
-      fd.append("removedImages", JSON.stringify(removedExistingIds));
-      newFiles.forEach((f) => fd.append("files", f));
+      // Build payload matching backend field names
+      const startISO = form.startTiming === "immediate" ? new Date().toISOString() : new Date(`${form.scheduleStartDate}T${form.scheduleStartTime}`).toISOString();
+      const endISO = new Date(`${form.scheduleEndDate}T${form.scheduleEndTime}`).toISOString();
 
-      await updateAuction(id, fd);
+      // compute images: start with existing urls (excluding removed), then upload new files and append their URLs
+      const existingUrls = existingImages
+        .filter((img) => !removedExistingIds.includes(img.id))
+        .map((img) => img.url);
+
+      let uploadedUrls = [];
+      if (newFiles && newFiles.length > 0) {
+        const upFd = new FormData();
+        newFiles.forEach((f) => upFd.append("images", f));
+        const upRes = await uploadImagesFormData(upFd);
+        uploadedUrls = upRes?.files || [];
+      }
+
+      const finalImages = [...existingUrls, ...uploadedUrls];
+
+      // normalize condition map if needed (frontend used like-new style)
+      const conditionMap = {
+        "like-new": "like new",
+        new: "new",
+        good: "good",
+        fair: "fair",
+      };
+
+      const payload = {
+        title: form.auctionName,
+        name: form.itemName,
+        description: form.itemDescription,
+        images: finalImages,
+        category: form.category,
+        condition: conditionMap[form.condition] || form.condition,
+        metadata: { conditionNotes: form.conditionNotes },
+        startingPrice: form.startingBidPrice === "" ? null : Number(form.startingBidPrice),
+        minIncrement: form.bidIncrement === "" ? null : Number(form.bidIncrement),
+        buyItNowPrice: form.buyItNowPrice === "" ? null : Number(form.buyItNowPrice),
+        startTime: startISO,
+        endTime: endISO,
+      };
+
+      await updateAuction(id, payload);
       setSuccessMsg("Auction updated successfully.");
       setTimeout(() => setSuccessMsg(""), 3000);
     } catch (err) {

@@ -1,6 +1,7 @@
 import express from "express";
 const router = express.Router();
-import { handleRegister , handleLogin, handleLogout, verifyEmail} from "../controllers/authController.js";
+import { handleRegister , handleLogin, handleLogout, verifyEmail, getCurrentUser } from "../controllers/authController.js";
+import { checkAuth } from "../middleware/authMiddleware.js";
 
 
 
@@ -11,5 +12,8 @@ router.post("/verifyemail", verifyEmail);
 router.post("/login", handleLogin);
 
 router.post("/logout", handleLogout);
+
+// GET /bidsphere/user/me - returns current user based on session cookie (token)
+router.get("/me", checkAuth, getCurrentUser);
 
 export default router;
