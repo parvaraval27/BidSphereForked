@@ -1,5 +1,5 @@
 import transporter  from "./email.transporter.js";
-import { Verification_Email_Template, Welcome_Email_Template, Outbid_Email_Template } from "./email.template.js";
+import { Verification_Email_Template, Welcome_Email_Template, Outbid_Email_Template, Reset_Password_Email_Template } from "./email.template.js";
 
 
 const SendVerificationCode = async (email, verificationCode) => {
@@ -13,7 +13,7 @@ const SendVerificationCode = async (email, verificationCode) => {
 
         console.log("Email send successfully", response);
     } catch (error) {
-        console.log("catch error")
+        console.log("catch error", error);
     }
 }
 
@@ -28,7 +28,7 @@ const WelcomeEmail = async (email, name) => {
 
         console.log("Email send successfully", response);
     } catch (error) {
-        console.log("catch error")
+        console.log("catch error", error);
     }
 }
 
@@ -54,5 +54,20 @@ const SendOutBidEmail= async (email, itemName, currentBid, maxLimit, auctionId, 
     }
 }
 
+const SendResetPwdEmail = async (email, resetPwdLink) => {
+  try {
+    const response = await transporter.sendMail({
+      from: `"BidSphere Support" <bidsphere.auction@gmail.com>`,
+      to: email,
+      subject: "Reset your BidSphere Password",
+      html: Reset_Password_Email_Template.replace("{resetLink}", resetPwdLink)
+    });
 
-export { SendVerificationCode, WelcomeEmail, SendOutBidEmail };
+    console.log("Email sent successfully", response);
+  } catch (error) {
+    console.log("catch error", error);
+  }
+};
+
+
+export { SendVerificationCode, WelcomeEmail, SendOutBidEmail, SendResetPwdEmail };
