@@ -6,7 +6,7 @@ const transporter = nodemailer.createTransport({
     secure: false,
     auth: {
         user: "bidsphere.auction@gmail.com",
-        pass: "pumv wpgp fdsn ihnl"
+        pass: "pvsa gnpn roxg fivf"
     }
 });
 
