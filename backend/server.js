@@ -48,4 +48,12 @@ app.use("/bidsphere/auctions", auctionRoutes);
 import bidRoutes from "./routes/bidRoutes.js";
 app.use("/BidSphere/:auctionId/bid", bidRoutes);
 
+// Payment Routes
+import paymentRoutes from "./routes/paymentRoutes.js";
+app.use("/bidsphere/admin/payments", restrictAdminIP, paymentRoutes);
+
+// UPI Payment Routes (public)
+import upiRoutes from "./routes/upiRoutes.js";
+app.use("/bidsphere/upi", upiRoutes);
+
 export default app;

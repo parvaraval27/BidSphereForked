@@ -2,6 +2,9 @@ const BASE_USER = "/bidsphere/user";
 const BASE_ADMIN = "/bidsphere/admin";
 const BASE_AUCTION = "/bidsphere/auctions";
 
+const BASE_UPI = "/bidsphere/upi";
+const BASE_PAYMENTS = "/bidsphere/admin/payments";
+
 async function postJSON(path, body) {
   const res = await fetch(path, {
     method: "POST",
@@ -14,6 +17,8 @@ async function postJSON(path, body) {
   if (!res.ok) throw new Error(data?.message || "Request failed");
   return data;
 }
+
+
 
 async function patchJSON(path, body) {
   const res = await fetch(path, {
@@ -28,9 +33,16 @@ async function patchJSON(path, body) {
 }
 
 async function getJSON(path) {
-  const res = await fetch(path, { credentials: "include" });
-  const data = await res.json().catch(() => null);
-  if (!res.ok) throw new Error(data?.message || "Request failed");
+  const res = await fetch(path, {
+    method: "GET",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+  });
+
+  const contentType = res.headers.get("content-type") || "";
+  const data = contentType.includes("application/json") ? await res.json() : null;
+
+  if (!res.ok) throw new Error(data.error || data.message || "Request failed");
   return data;
 }
 
@@ -103,3 +115,14 @@ export async function uploadImagesFormData(formData) {
   if (!res.ok) throw new Error(data?.message || "Request failed");
   return data;
 }
+
+
+// Payment APIs
+export const createUpiOrder = (payload) => postJSON(`${BASE_UPI}/create-order`, payload);
+export const createCodOrder = (payload) => postJSON(`${BASE_UPI}/create-cod`, payload);
+export const getPaymentStatus = (paymentId) => getJSON(`${BASE_UPI}/status/${paymentId}`);
+export const verifyPayment = (payload) => postJSON(`${BASE_PAYMENTS}/verify-payment`, payload);
+export const listPayments = (queryParams = {}) => {
+  const params = new URLSearchParams(queryParams).toString();
+  return getJSON(`${BASE_PAYMENTS}/payments${params ? `?${params}` : ''}`);
+};
