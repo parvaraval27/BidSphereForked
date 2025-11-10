@@ -45,6 +45,18 @@ async function putFormData(path, formData) {
   return data;
 }
 
+async function putJSON(path, body) {
+  const res = await fetch(path, {
+    method: "PUT",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => null);
+  if (!res.ok) throw new Error(data?.message || "Request failed");
+  return data;
+}
+
 async function del(path) {
   const res = await fetch(path, { method: "DELETE", credentials: "include" });
   const data = await res.json().catch(() => null);
@@ -62,5 +74,32 @@ export const logoutAdmin = () => postJSON(`${BASE_ADMIN}/logout`, {});
 
 export const getAuction = (id) => getJSON(`${BASE_AUCTION}/${id}`);
 export const saveAuctionDraft = (id, payload) => patchJSON(`${BASE_AUCTION}/${id}/draft`, payload);
-export const updateAuction = (id, formData) => putFormData(`${BASE_AUCTION}/${id}`, formData);
+export const updateAuction = (id, body) => {
+  // allow either FormData (for legacy) or plain JSON object
+  if (typeof FormData !== "undefined" && body instanceof FormData) {
+    return putFormData(`${BASE_AUCTION}/${id}`, body);
+  }
+  return putJSON(`${BASE_AUCTION}/${id}`, body);
+};
 export const deleteAuction = (id) => del(`${BASE_AUCTION}/${id}`);
+export const createAuction = (payload) => postJSON(`${BASE_AUCTION}/create`, payload);
+export const getMyAuctions = (params = {}) => {
+  const qs = new URLSearchParams(params).toString();
+  return getJSON(`${BASE_AUCTION}/mine${qs ? `?${qs}` : ""}`);
+};
+export const listAuctions = (params = {}) => {
+  const qs = new URLSearchParams(params).toString();
+  return getJSON(`${BASE_AUCTION}${qs ? `?${qs}` : ""}`);
+};
+export const getCurrentUser = () => getJSON(`${BASE_USER}/me`);
+export const uploadImagesBase64 = (imagesPayload) => postJSON(`${BASE_AUCTION}/upload-base64`, imagesPayload);
+export async function uploadImagesFormData(formData) {
+  const res = await fetch(`${BASE_AUCTION}/upload`, {
+    method: "POST",
+    credentials: "include",
+    body: formData,
+  });
+  const data = await res.json().catch(() => null);
+  if (!res.ok) throw new Error(data?.message || "Request failed");
+  return data;
+}

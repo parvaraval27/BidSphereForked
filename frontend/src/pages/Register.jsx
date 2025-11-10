@@ -4,13 +4,13 @@ import { Link, useNavigate } from "react-router-dom";
 import { registerUser } from "../api";
 
 function Register() {
+  const navigate = useNavigate();
   const [form, setForm] = useState({
     name: "",
     email: "",
     password: "",
   });
 
-  const navigate = useNavigate();
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });

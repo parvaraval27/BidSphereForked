@@ -118,6 +118,19 @@ async function verifyEmail (req, res) {
   }
 }
 
+async function getCurrentUser(req, res) {
+  try {
+    // checkAuth middleware may set req.user to decoded token or null
+    const user = req.user;
+    if (!user) return res.status(200).json({ user: null });
+    // return only public fields
+    return res.status(200).json({ user: { username: user.username || user.name, email: user.email, _id: user._id } });
+  } catch (err) {
+    console.error("getCurrentUser error:", err);
+    return res.status(500).json({ user: null, message: err.message });
+  }
+}
+
 async function handleResetPwdEmail (req, res) {
   try {
     const { email } = req.body;
@@ -191,4 +204,4 @@ async function handleResetPwd (req, res) {
   }
 };
 
-export { handleRegister , handleLogin, handleLogout, verifyEmail, handleResetPwdEmail, handleResetPwd };
+export { handleRegister , handleLogin, handleLogout, verifyEmail,getCurrentUser, handleResetPwdEmail, handleResetPwd };

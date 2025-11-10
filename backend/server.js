@@ -2,6 +2,7 @@ import express from "express";
 import cookieParser from "cookie-parser";
 import dotenv from "dotenv";
 dotenv.config();
+import path from "path";
 
 // express app
 const app = express();
@@ -20,9 +21,11 @@ connectDB()
   });
 
 //middlewares
-app.use(express.urlencoded({ extended: true }));
-app.use(express.json());       
+app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+app.use(express.json({ limit: "10mb" }));      
 app.use(cookieParser());      
+// serve uploaded files from /uploads
+app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 import { restrictToLoggedinUserOnly, checkAuth } from "./middleware/authMiddleware.js"; 
 import { restrictAdminIP } from "./middleware/adminMiddleware.js";
 

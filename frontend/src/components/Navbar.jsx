@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
-import { logoutUser } from "../api"; 
+import { logoutUser, getCurrentUser } from "../api"; 
 import { logoutAdmin } from "../api/index";
 
 function Navbar() {
@@ -13,8 +13,25 @@ function Navbar() {
   const loadAuthFromStorage = () => {
     try {
       const storedUser = localStorage.getItem("bidsphere_user");
-      setUser(storedUser ? JSON.parse(storedUser) : null);
-    } catch {setUser(null);}
+      if (storedUser) {
+        try {
+          setUser(JSON.parse(storedUser));
+        } catch (e) {
+          // if parsing fails, store raw string
+          setUser(storedUser);
+        }
+      } else {
+        setUser(null);
+      }
+    } catch (err) {
+      // defensive: try sessionStorage as a fallback
+      try {
+        const s = sessionStorage.getItem("bidsphere_user");
+        setUser(s ? JSON.parse(s) : null);
+      } catch {
+        setUser(null);
+      }
+    }
     try {
       const storedAdmin = localStorage.getItem("bidsphere_admin");
       setAdmin(storedAdmin ? JSON.parse(storedAdmin) : null);
@@ -22,8 +39,34 @@ function Navbar() {
   };
 
   useEffect(() => {
-    loadAuthFromStorage();
+    // try to get authoritative user from backend first
+    let mounted = true;
+    (async () => {
+      try {
+        const res = await getCurrentUser();
+        if (!mounted) return;
+        if (res?.user) {
+          setUser(res.user);
+          // mirror into localStorage for compatibility with other flows
+          try { localStorage.setItem("bidsphere_user", JSON.stringify(res.user)); } catch {}
+          return;
+        }
+      } catch (err) {
+        // ignore and fallback to storage
+      }
+      loadAuthFromStorage();
+    })();
+    return () => { mounted = false; };
   }, [location]);
+
+  // listen to storage events so navbar updates when auth changes in other tabs
+  useEffect(() => {
+    const onStorage = (e) => {
+      if (e.key === "bidsphere_user") loadAuthFromStorage();
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
 
   const handleUserLogout = async () => {
     try {
@@ -52,7 +95,7 @@ function Navbar() {
   return (
     <nav className="flex items-center justify-between bg-yellow-500 px-6 py-3">
       <div className="text-2xl font-bold">
-        BID<span className="text-black">SPHERE</span>
+        <Link to="/">BID SPHERE</Link>
       </div>
 
       <input
@@ -62,9 +105,9 @@ function Navbar() {
       />
 
       <ul className="flex space-x-6 font-medium">
-        <li><Link to="/">Home</Link></li>
         <li><Link to="/categories">Categories</Link></li>
         <li><Link to="/contact">Contact</Link></li>
+        <li><Link to='/create-auction'>Create Auction</Link></li>
 
         {!user && !admin && (
           <>
@@ -79,7 +122,7 @@ function Navbar() {
 
         {user && (
           <>
-            <li>Hello, <span className="font-semibold">{user.username}</span></li>
+            <li><Link to="/dashboard">Dashboard</Link></li>
             <li>
               <button onClick={handleUserLogout} className="bg-white px-3 py-1 rounded-md">
                 Logout
