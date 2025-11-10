@@ -16,6 +16,6 @@ router.post("/editauto/:autobidId", restrictToLoggedinUserOnly, validateAutoBid,
 
 router.post("/deactivateauto/:autobidId", restrictToLoggedinUserOnly, deactivateAutoBid);
 
-router.post("/activateauto/:autobidId", restrictToLoggedinUserOnly, validateAutoBid, activateAutoBid);
+router.post("/activateauto/:autobidId", restrictToLoggedinUserOnly, activateAutoBid);
 
 export default router;
