@@ -92,7 +92,7 @@ function AuctionDetails() {
                 <div className="font-medium">₹{auction.buyItNowPrice}</div>
               </div>
             )}
-
+            <div className="mt-4 text-sm text-gray-600">Starts: {auction?.startTime ? new Date(auction.startTime).toLocaleString() : "—"}</div>
             <div className="mt-4 text-sm text-gray-600">Ends: {auction?.endTime ? new Date(auction.endTime).toLocaleString() : "—"}</div>
 
             <div className="mt-4 border-t pt-3">

@@ -44,7 +44,14 @@ function Home() {
         // fetch all auctions (backend defaults to paging) — adjust params as needed
         const res = await listAuctions({ limit: 50 });
         if (!mounted) return;
-        setAuctions(res?.auctions || []);
+        // only show upcoming or live auctions
+        const all = res?.auctions || [];
+        const visible = all.filter((a) => {
+          const s = (a && a.status) || "";
+          const up = String(s).toUpperCase();
+          return up === "LIVE" || up === "UPCOMING";
+        });
+        setAuctions(visible);
       } catch (err) {
         console.error("listAuctions error:", err);
         if (mounted) setError(err.message || "Failed to load auctions");

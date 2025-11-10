@@ -526,25 +526,8 @@ export default function CreateAuction() {
             <h2 className="text-2xl font-bold mb-1">Auction Timing</h2>
             <p className="text-sm text-gray-600 mb-6">Schedule when your auction starts and ends</p>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-              <label className={`flex items-center justify-between rounded-lg border p-4 cursor-pointer ${form.startTiming === "immediate" ? "border-gray-700 bg-white" : "border-gray-300 bg-[#FBF7F0]"}`}>
-                <div className="flex items-center gap-3">
-                  <div className="w-5 h-5 rounded-full border flex items-center justify-center">
-                    <input type="radio" name="startTiming" value="immediate" checked={form.startTiming === "immediate"} onChange={handleChange} className="w-4 h-4" />
-                  </div>
-                  <span className="text-sm text-gray-800">Start Immediately</span>
-                </div>
-              </label>
-
-              <label className={`flex items-center justify-between rounded-lg border p-4 cursor-pointer ${form.startTiming === "schedule" ? "border-blue-500 bg-white" : "border-gray-300 bg-[#FBF7F0]"}`}>
-                <div className="flex items-center gap-3">
-                  <div className="w-5 h-5 rounded-full border flex items-center justify-center">
-                    <input type="radio" name="startTiming" value="schedule" checked={form.startTiming === "schedule"} onChange={handleChange} className="w-4 h-4" />
-                  </div>
-                  <span className="text-sm text-gray-800">Schedule for later</span>
-                </div>
-              </label>
-            </div>
+            
+              
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {form.startTiming === "schedule" && (
@@ -567,6 +550,7 @@ export default function CreateAuction() {
                     className="w-full rounded-md border border-gray-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-400 bg-[#FBF7F0]"
                   />
                 </div>
+
               )}
 
               <div className="space-y-4">

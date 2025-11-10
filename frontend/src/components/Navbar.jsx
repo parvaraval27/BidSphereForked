@@ -95,7 +95,7 @@ function Navbar() {
   return (
     <nav className="flex items-center justify-between bg-yellow-500 px-6 py-3">
       <div className="text-2xl font-bold">
-        BID<span className="text-black">SPHERE</span>
+        <Link to="/">BID SPHERE</Link>
       </div>
 
       <input
@@ -105,7 +105,6 @@ function Navbar() {
       />
 
       <ul className="flex space-x-6 font-medium">
-        <li><Link to="/">Home</Link></li>
         <li><Link to="/categories">Categories</Link></li>
         <li><Link to="/contact">Contact</Link></li>
         <li><Link to='/create-auction'>Create Auction</Link></li>
