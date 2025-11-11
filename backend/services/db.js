@@ -1,8 +1,8 @@
 import mongoose from "mongoose";
-
+import 'dotenv/config'; 
 const connectDB = async () => {
     try {
-      mongoose.connect("mongodb://localhost:27017/BidSphere")
+      mongoose.connect(process.env.MONGO_URI)
       
     } catch (error) {
       console.log("config error");
