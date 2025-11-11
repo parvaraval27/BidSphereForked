@@ -3,10 +3,11 @@ import Bid from "../models/Bids.js";
 import mongoose from "mongoose";
 import User from "../models/User.js";
 import { logAuctionEvent } from "../services/logger.service.js";
-import fs from "fs";
-import path from "path";
+import {
+  uploadBase64ToCloudinary,
+} from "../services/cloudinary.service.js";
 
-// helper: save base64 images to uploads/ and return public paths
+// helper: upload base64 images to Cloudinary and return public URLs
 async function uploadBase64Images(req, res) {
   try {
     const images = req.body?.images;
@@ -14,29 +15,34 @@ async function uploadBase64Images(req, res) {
       return res.status(400).json({ success: false, message: "No images provided" });
     }
 
-    const uploadDir = path.join(process.cwd(), "uploads");
-    if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
-
     const saved = [];
     for (const img of images) {
-      // expected { name, data } where data is dataURL or base64
-      const name = img.name ? String(img.name).replace(/[^a-zA-Z0-9.\-_]/g, "_") : `img_${Date.now()}`;
+      const name = img.name ? String(img.name) : `img_${Date.now()}.jpg`;
       let data = img.data || "";
-      // strip data URL prefix if present
+
       const match = data.match(/^data:(.+);base64,(.+)$/);
       let base64;
-      if (match) base64 = match[2];
-      else base64 = data;
+      let contentType = "image/jpeg";
+
+      if (match) {
+        contentType = match[1] || contentType;
+        base64 = match[2];
+      } else {
+        base64 = data;
+      }
 
       if (!base64) continue;
-      const buffer = Buffer.from(base64, "base64");
-      const filename = `${Date.now()}_${Math.random().toString(36).slice(2,8)}_${name}`;
-      const filepath = path.join(uploadDir, filename);
-      fs.writeFileSync(filepath, buffer);
-      // return the public path (served from /uploads) — include full absolute URL so frontend can use it directly
-      const host = req.get("host");
-      const proto = req.protocol || "http";
-      saved.push(`${proto}://${host}/uploads/${filename}`);
+
+      const dataUri = match
+        ? data
+        : `data:${contentType};base64,${base64}`;
+
+      const cloudinaryResult = await uploadBase64ToCloudinary(dataUri, {
+        filename: name,
+        resourceType: "image",
+      });
+
+      saved.push(cloudinaryResult.url);
     }
 
     return res.status(201).json({ success: true, files: saved });
