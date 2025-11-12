@@ -1,12 +1,12 @@
 import nodemailer from "nodemailer";
-
+import 'dotenv/config'; 
 const transporter = nodemailer.createTransport({
     host: "smtp.gmail.com",
     port: 587,
     secure: false,
     auth: {
-        user: "bidsphere.auction@gmail.com",
-        pass: "pvsa gnpn roxg fivf"
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS
     }
 });
 
