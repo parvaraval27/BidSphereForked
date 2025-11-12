@@ -105,6 +105,19 @@ export const listAuctions = (params = {}) => {
 };
 export const getCurrentUser = () => getJSON(`${BASE_USER}/me`);
 export const uploadImagesBase64 = (imagesPayload) => postJSON(`${BASE_AUCTION}/upload-base64`, imagesPayload);
+/**
+ * Upload images as multipart/form-data using XMLHttpRequest so callers can
+ * receive progress updates. Accepts either a FormData or an Array<File>.
+ *
+ * Usage:
+ *   // with FormData
+ *   uploadImagesFormData(fd, (progress) => console.log(progress.percent));
+ *
+ *   // with files array
+ *   uploadImagesFormData([file1, file2], (p) => ...)
+ *
+ * Returns a promise that resolves to the parsed JSON response from the server.
+ */
 export async function uploadImagesFormData(formData) {
   const res = await fetch(`${BASE_AUCTION}/upload`, {
     method: "POST",
@@ -115,6 +128,7 @@ export async function uploadImagesFormData(formData) {
   if (!res.ok) throw new Error(data?.message || "Request failed");
   return data;
 }
+
 
 
 // Payment APIs

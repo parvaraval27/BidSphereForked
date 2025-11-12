@@ -24,11 +24,11 @@ export default function EditAuctionDraftWithId() {
   const fileInputRef = useRef(null);
 
   const [loading, setLoading] = useState(true);
-  const [savingDraft, setSavingDraft] = useState(false);
   const [updating, setUpdating] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [successMsg, setSuccessMsg] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
+  
 
   const [form, setForm] = useState({
     auctionName: "",
@@ -39,7 +39,6 @@ export default function EditAuctionDraftWithId() {
     conditionNotes: "",
     startingBidPrice: "",
     reservePrice: "",
-    buyItNowPrice: "",
     bidIncrement: "",
     startTiming: "immediate",
     scheduleStartDate: "",
@@ -106,7 +105,6 @@ export default function EditAuctionDraftWithId() {
           conditionNotes: auction.item?.metadata?.conditionNotes || "",
           startingBidPrice: auction.startingPrice != null ? String(auction.startingPrice) : "",
           reservePrice: "",
-          buyItNowPrice: auction.buyItNowPrice != null ? String(auction.buyItNowPrice) : "",
           bidIncrement: auction.minIncrement != null ? String(auction.minIncrement) : "",
           startTiming: auction.startTime ? "schedule" : "immediate",
           scheduleStartDate: auction.startTime ? new Date(auction.startTime).toISOString().slice(0, 10) : "",
@@ -137,8 +135,8 @@ export default function EditAuctionDraftWithId() {
   }, [id]);
 
   function handleChange(e) {
-    const { name, value } = e.target;
-    const currencyFields = ["startingBidPrice", "reservePrice", "buyItNowPrice"];
+  const { name, value } = e.target;
+  const currencyFields = ["startingBidPrice", "reservePrice"];
     const integerFields = ["bidIncrement"];
     if (currencyFields.includes(name)) {
       setForm((s) => ({ ...s, [name]: sanitizeCurrency(value) }));
@@ -214,27 +212,7 @@ export default function EditAuctionDraftWithId() {
     setRemovedExistingIds((prev) => prev.filter((x) => x !== imgId));
   }
 
-  async function handleSaveDraft() {
-    setSavingDraft(true);
-    setErrorMsg("");
-    try {
-      const payload = {
-        ...form,
-        startingBidPrice: form.startingBidPrice === "" ? null : Number(form.startingBidPrice),
-        reservePrice: form.reservePrice === "" ? null : Number(form.reservePrice),
-        buyItNowPrice: form.buyItNowPrice === "" ? null : Number(form.buyItNowPrice),
-        bidIncrement: form.bidIncrement === "" ? null : Number(form.bidIncrement),
-        removedImages: removedExistingIds,
-      };
-      await saveAuctionDraft(id, payload);
-      setSuccessMsg("Draft saved.");
-      setTimeout(() => setSuccessMsg(""), 2500);
-    } catch (err) {
-      setErrorMsg(String(err.message));
-    } finally {
-      setSavingDraft(false);
-    }
-  }
+  // handleSaveDraft removed
 
   async function handleUpdate(e) {
     e.preventDefault();
@@ -299,7 +277,6 @@ export default function EditAuctionDraftWithId() {
         metadata: { conditionNotes: form.conditionNotes },
         startingPrice: form.startingBidPrice === "" ? null : Number(form.startingBidPrice),
         minIncrement: form.bidIncrement === "" ? null : Number(form.bidIncrement),
-        buyItNowPrice: form.buyItNowPrice === "" ? null : Number(form.buyItNowPrice),
         startTime: startISO,
         endTime: endISO,
       };
@@ -411,6 +388,7 @@ export default function EditAuctionDraftWithId() {
                     </div>
                   ))}
                 </div>
+                
               </div>
 
               <div className="space-y-4">
@@ -479,14 +457,7 @@ export default function EditAuctionDraftWithId() {
                 <p className="text-xs text-gray-500 mt-1">Lowest price you will accept</p>
               </label>
 
-              <label>
-                <span className="text-sm text-gray-700">Buy It Now Price (Optional)</span>
-                <div className="mt-2 relative">
-                  <span className="absolute left-3 top-2 text-gray-700 font-semibold">₹</span>
-                  <input type="text" name="buyItNowPrice" value={form.buyItNowPrice} onChange={handleChange} inputMode="decimal" className="pl-10 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400" placeholder="0.00" />
-                </div>
-                <p className="text-xs text-gray-500 mt-1">Allow immediate purchase</p>
-              </label>
+              {/* Buy It Now option removed */}
 
               <label>
                 <span className="text-sm text-gray-700">Bid Increment*</span>
@@ -555,9 +526,7 @@ export default function EditAuctionDraftWithId() {
               </div>
 
               <div className="flex items-center gap-3">
-                <button type="button" onClick={handleSaveDraft} disabled={savingDraft} className="rounded border border-gray-300 bg-white px-4 py-2 text-sm font-medium hover:bg-gray-50">
-                  {savingDraft ? "Saving..." : "Save as Draft"}
-                </button>
+                {/* Save as Draft removed */}
 
                 <button type="button" onClick={() => navigate(-1)} className="rounded border border-gray-300 bg-white px-4 py-2 text-sm font-medium hover:bg-gray-50">
                   Cancel
