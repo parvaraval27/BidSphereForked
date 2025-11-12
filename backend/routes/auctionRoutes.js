@@ -2,6 +2,7 @@ import express from "express";
 const router = express.Router();
 import { createAuction, getMyAuctions, getAuctionById, listAuctions, editAuction, deleteAuction, uploadBase64Images } from "../controllers/auctionController.js";
 import multer from "multer";
+// fs/path used previously to ensure upload dir; removed in revert
 
 // multer setup - store files in uploads/ with original name (sanitized)
 const storage = multer.diskStorage({
@@ -13,6 +14,7 @@ const storage = multer.diskStorage({
 	},
 });
 const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } }); // 5MB per file
+// (reverted) previously ensured uploads directory here; no-op on revert
 import { restrictToLoggedinUserOnly as auth } from "../middleware/authMiddleware.js";
 import { validateCreateAuction as vCreate, validateUpdateAuction as vUpdate, validateObjectIdParam as vId, ensureBeforeStart} from "../middleware/auctionValidMiddleware.js";
 import { validateAuctionOwnership as owner } from "../middleware/ownMiddleware.js";

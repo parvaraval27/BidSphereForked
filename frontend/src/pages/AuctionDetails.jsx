@@ -86,12 +86,7 @@ function AuctionDetails() {
               <div className="font-medium">₹{auction?.minIncrement ?? "-"}</div>
             </div>
 
-            {auction?.buyItNowPrice !== undefined && (
-              <div className="mt-3">
-                <div className="text-gray-500 text-sm">Buy It Now</div>
-                <div className="font-medium">₹{auction.buyItNowPrice}</div>
-              </div>
-            )}
+            {/* Buy It Now removed from UI */}
             <div className="mt-4 text-sm text-gray-600">Starts: {auction?.startTime ? new Date(auction.startTime).toLocaleString() : "—"}</div>
             <div className="mt-4 text-sm text-gray-600">Ends: {auction?.endTime ? new Date(auction.endTime).toLocaleString() : "—"}</div>
 

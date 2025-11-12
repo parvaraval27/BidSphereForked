@@ -30,7 +30,7 @@ export default function CreateAuction() {
     conditionNotes: "",
     startingBidPrice: "",
     reservePrice: "",
-    buyItNowPrice: "",
+  // buyItNowPrice removed
     bidIncrement: "",
     startTiming: "immediate",
     scheduleStartDate: "",
@@ -44,10 +44,11 @@ export default function CreateAuction() {
   const [previews, setPreviews] = useState([]); // {id, url, name}[]
   const fileInputRef = useRef(null);
 
-  const [savingDraft, setSavingDraft] = useState(false);
+  // savingDraft removed
   const [successModalOpen, setSuccessModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [createdAuctionId, setCreatedAuctionId] = useState(null);
+  
   const categories = [
     { value: "", label: "Select" },
     { value: "electronics", label: "Electronics" },
@@ -93,8 +94,8 @@ export default function CreateAuction() {
   }
 
   function handleChange(e) {
-    const { name, value } = e.target;
-    const currencyFields = ["startingBidPrice", "reservePrice", "buyItNowPrice"];
+  const { name, value } = e.target;
+  const currencyFields = ["startingBidPrice", "reservePrice"];
     const integerFields = ["bidIncrement"];
 
     if (currencyFields.includes(name)) {
@@ -212,15 +213,7 @@ export default function CreateAuction() {
     setForm((s) => ({ ...s, condition: cond }));
   }
 
-  function handleSaveDraft() {
-    setSavingDraft(true);
-    setTimeout(() => {
-      setSavingDraft(false);
-      // demo: simple alert - you can replace with a toast/modal if you prefer
-      alert("Draft saved (demo).");
-      console.log("Draft:", { ...form, images: images.map((f) => f.name) });
-    }, 600);
-  }
+  // handleSaveDraft removed
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -256,7 +249,6 @@ export default function CreateAuction() {
       metadata: { conditionNotes: form.conditionNotes },
       startingPrice: form.startingBidPrice === "" ? null : Number(form.startingBidPrice),
       minIncrement: form.bidIncrement === "" ? null : Number(form.bidIncrement),
-      buyItNowPrice: form.buyItNowPrice === "" ? null : Number(form.buyItNowPrice),
       startTime: startDt.toISOString(),
       endTime: endDt.toISOString(),
     };
@@ -387,6 +379,7 @@ export default function CreateAuction() {
                     ))}
                   </div>
                 )}
+                
               </div>
 
               {/* Right */}
@@ -403,7 +396,7 @@ export default function CreateAuction() {
                   <div className="mt-3 space-y-3">
                     {[
                       { id: "new", title: "New", desc: "Brand new, never used" },
-                      { id: "like-new", title: "Like New", desc: "Minimal use, excellent" },
+                      { id: "like new", title: "Like New", desc: "Minimal use, excellent" },
                       { id: "good", title: "Good", desc: "Normal wear, fully functional" },
                       { id: "fair", title: "Fair", desc: "Visible wear, some defects" },
                     ].map((c) => {
@@ -476,25 +469,7 @@ export default function CreateAuction() {
                 <p className="text-xs text-gray-500 mt-1">Lowest price you will accept</p>
               </label>
 
-              <label>
-                <span className="text-sm text-gray-700">Buy It Now Price (Optional)</span>
-                <div className="mt-2 relative">
-                  <span className="absolute left-3 top-2 text-gray-700 font-semibold">₹</span>
-                  <input
-                    type="text"
-                    name="buyItNowPrice"
-                    value={form.buyItNowPrice}
-                    onChange={handleChange}
-                    onKeyDown={(e) => handleNumericKeyDown(e, "currency")}
-                    onPaste={(e) => handlePaste(e, "buyItNowPrice", "currency")}
-                    inputMode="decimal"
-                    pattern="^\d+(\.\d{0,2})?$"
-                    className="pl-10 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400"
-                    placeholder="0.00"
-                  />
-                </div>
-                <p className="text-xs text-gray-500 mt-1">Allow immediate purchase</p>
-              </label>
+              {/* Buy It Now option removed */}
 
               <label>
                 <span className="text-sm text-gray-700">Bid Increment*</span>
@@ -526,8 +501,27 @@ export default function CreateAuction() {
             <h2 className="text-2xl font-bold mb-1">Auction Timing</h2>
             <p className="text-sm text-gray-600 mb-6">Schedule when your auction starts and ends</p>
 
-            
-              
+
+            {/* start timing: immediate or scheduled */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+              <label className={`flex items-center justify-between rounded-lg border p-4 cursor-pointer ${form.startTiming === "immediate" ? "border-gray-700 bg-white" : "border-gray-300 bg-[#FBF7F0]"}`}>
+                <div className="flex items-center gap-3">
+                  <div className="w-5 h-5 rounded-full border flex items-center justify-center">
+                    <input type="radio" name="startTiming" value="immediate" checked={form.startTiming === "immediate"} onChange={handleChange} className="w-4 h-4" />
+                  </div>
+                  <span className="text-sm text-gray-800">Start Immediately</span>
+                </div>
+              </label>
+
+              <label className={`flex items-center justify-between rounded-lg border p-4 cursor-pointer ${form.startTiming === "schedule" ? "border-blue-500 bg-white" : "border-gray-300 bg-[#FBF7F0]"}`}>
+                <div className="flex items-center gap-3">
+                  <div className="w-5 h-5 rounded-full border flex items-center justify-center">
+                    <input type="radio" name="startTiming" value="schedule" checked={form.startTiming === "schedule"} onChange={handleChange} className="w-4 h-4" />
+                  </div>
+                  <span className="text-sm text-gray-800">Schedule for later</span>
+                </div>
+              </label>
+            </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {form.startTiming === "schedule" && (
@@ -582,9 +576,7 @@ export default function CreateAuction() {
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div /> {/* intentionally empty to keep spacing balanced */}
               <div className="flex items-center gap-3">
-                <button type="button" onClick={handleSaveDraft} disabled={savingDraft} className="rounded border border-gray-300 bg-white px-4 py-2 text-sm font-medium hover:bg-gray-50">
-                  {savingDraft ? "Saving..." : "Save as Draft"}
-                </button>
+                {/* Save as Draft removed */}
 
                 <button type="button" onClick={() => window.history.back()} className="rounded border border-gray-300 bg-white px-4 py-2 text-sm font-medium hover:bg-gray-50">
                   Cancel
