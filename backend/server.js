@@ -10,11 +10,17 @@ app.set("trust proxy", true);
 
 //connect to db
 import connectDB from "./services/db.js";
+import { startAuctionStatusUpdater } from "./services/auctionStatusUpdater.js";
 
 const PORT = process.env.PORT || 5000;
 connectDB()
   .then(() => {
     app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+    const cronPattern = process.env.AUCTION_STATUS_UPDATER_CRON || "*/1 * * * *";
+    startAuctionStatusUpdater({ 
+      cronPattern,
+      runOnStart: true 
+    });
   })
   .catch((err) => {
     console.error("Database connection failed");
