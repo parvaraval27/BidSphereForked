@@ -159,9 +159,10 @@ async function verifyAuction(req, res) {
       });
     }
 
-    // Update auction to verified and set status to LIVE
+    const newStatus = determineStatus(auction.startTime, auction.endTime);
+
     auction.verified = true;
-    auction.status = "LIVE";
+    auction.status = newStatus;
 
     await auction.save();
     await auction.populate("createdBy", "username email");
