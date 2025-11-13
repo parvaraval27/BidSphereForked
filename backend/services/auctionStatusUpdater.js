@@ -63,9 +63,12 @@ async function updateAuctionStatuses() {
   const now = new Date();
 
   try {
+    //skip unverified auctions and dont change their status
+    
     // upcoming to live
     const toLiveCount = await processStatusUpdateBatch(
       {
+        verified: true,  
         status: "UPCOMING",
         startTime: { $lte: now },
         endTime: { $gt: now },
@@ -77,6 +80,7 @@ async function updateAuctionStatuses() {
     // upcoming to ended
     const upcomingToEndedCount = await processStatusUpdateBatch(
       {
+        verified: true,  
         status: "UPCOMING",
         endTime: { $lte: now },
       },
@@ -88,6 +92,7 @@ async function updateAuctionStatuses() {
     // live to ended
     const toEndedCount = await processStatusUpdateBatch(
       {
+        verified: true, 
         status: "LIVE",
         endTime: { $lte: now },
       },
