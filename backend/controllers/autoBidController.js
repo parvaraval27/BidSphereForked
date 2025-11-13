@@ -129,8 +129,12 @@ export const activateAutoBid = async (req, res) => {
   
   try {
     const { auctionId, autobidId } = req.params;
-    // const { userId } = req.body;
     const userId = req.user._id;
+
+    const auction = await Auction.findById(auctionId);
+    if (!auction || auction.status === "ENDED" || auction.status === "CANCELLED") {
+      return res.status(400).json({ success: false, message: "Auction not found" });
+    }
 
     const autobid = await AutoBid.findById(autobidId);
     if (!autobid) {
@@ -159,6 +163,16 @@ export const activateAutoBid = async (req, res) => {
       details: { activatedAt: new Date(), maxLimit: autobid.maxLimit },
     });
 
+    const maxLimit = autobid.maxLimit;
+    if (typeof maxLimit !== "number") {
+      return res.status(400).json({ success: false, message: "Numeric amount are required" });
+    }
+
+    if (maxLimit < auction.startingPrice || maxLimit < auction.currentBid + auction.minIncrement) {
+      SendOutBidEmail(bidder.email, auction.item.name, auction.currentBid, maxLimit, auction._id, auction.title);
+      return res.status(400).json({ success: false, message: "Your maxLimit is too low, OutBid mail sent" }); 
+    }
+
     handleAutoBids(auctionId);
     
     return res.status(200).json({
@@ -179,7 +193,6 @@ export const activateAutoBid = async (req, res) => {
 export const deactivateAutoBid = async (req, res) => {
   try {
     const { auctionId, autobidId } = req.params;
-    // const { userId } = req.body;
     const userId = req.user._id; 
 
     const existingAutoBid = await AutoBid.findById(autobidId);
@@ -187,6 +200,13 @@ export const deactivateAutoBid = async (req, res) => {
       return res.status(404).json({
         success: false,
         message: "Auto-bid not found for this user and auction",
+      });
+    }
+
+    if (existingAutoBid.isActive === false) {
+      return res.status(200).json({
+        success: true,
+        message: "Auto-bid is already deactivated",
       });
     }
 

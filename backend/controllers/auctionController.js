@@ -3,6 +3,54 @@ import Bid from "../models/Bids.js";
 import mongoose from "mongoose";
 import User from "../models/User.js";
 import { logAuctionEvent } from "../services/logger.service.js";
+import {
+  uploadBase64ToCloudinary,
+} from "../services/cloudinary.service.js";
+
+// helper: upload base64 images to Cloudinary and return public URLs
+async function uploadBase64Images(req, res) {
+  try {
+    const images = req.body?.images;
+    if (!Array.isArray(images) || images.length === 0) {
+      return res.status(400).json({ success: false, message: "No images provided" });
+    }
+
+    const saved = [];
+    for (const img of images) {
+      const name = img.name ? String(img.name) : `img_${Date.now()}.jpg`;
+      let data = img.data || "";
+
+      const match = data.match(/^data:(.+);base64,(.+)$/);
+      let base64;
+      let contentType = "image/jpeg";
+
+      if (match) {
+        contentType = match[1] || contentType;
+        base64 = match[2];
+      } else {
+        base64 = data;
+      }
+
+      if (!base64) continue;
+
+      const dataUri = match
+        ? data
+        : `data:${contentType};base64,${base64}`;
+
+      const cloudinaryResult = await uploadBase64ToCloudinary(dataUri, {
+        filename: name,
+        resourceType: "image",
+      });
+
+      saved.push(cloudinaryResult.url);
+    }
+
+    return res.status(201).json({ success: true, files: saved });
+  } catch (err) {
+    console.error("uploadBase64Images error:", err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+}
 
 //helper func to determine status i.e. upcoming/live/completed auction
 function determineStatus(startTime, endTime) {
@@ -206,6 +254,8 @@ async function listAuctions(req, res) {
 async function editAuction(req, res) {
   try {
     const {auctionId }=req.params;
+    // user performing the update
+    const userId = req.user && req.user._id;
 
     const existing = req.auction;
     if (!existing) {
@@ -336,4 +386,5 @@ export {
   listAuctions,
   editAuction,
   deleteAuction,
+  uploadBase64Images,
 };

@@ -1,7 +1,8 @@
 import User from "../models/User.js"; 
 import bcrypt from "bcryptjs";
+import crypto from "crypto";
 import { setUser , generateHashPassword} from "../services/auth.js";
-import { SendVerificationCode, WelcomeEmail } from "../services/email.sender.js";
+import { SendVerificationCode, WelcomeEmail, SendResetPwdEmail } from "../services/email.sender.js";
 
 
 
@@ -123,4 +124,90 @@ async function verifyEmail (req, res) {
   }
 }
 
-export { handleRegister , handleLogin, handleLogout, verifyEmail };
+async function getCurrentUser(req, res) {
+  try {
+    // checkAuth middleware may set req.user to decoded token or null
+    const user = req.user;
+    if (!user) return res.status(200).json({ user: null });
+    // return only public fields
+    return res.status(200).json({ user: { username: user.username || user.name, email: user.email, _id: user._id } });
+  } catch (err) {
+    console.error("getCurrentUser error:", err);
+    return res.status(500).json({ user: null, message: err.message });
+  }
+}
+
+async function handleResetPwdEmail (req, res) {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ message: "Enter your verified email" });
+    }
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    if (!user.isVerified) {
+      return res.status(404).json({ message: "User is not verifid yet, first verify your email" });
+    }
+
+    const resetToken = crypto.randomBytes(32).toString("hex");
+    const resetTokenExpiry = Date.now() + 15 * 60 * 1000;
+
+    user.resetToken = resetToken;
+    user.resetTokenExpiry = resetTokenExpiry;
+    await user.save();
+
+    // const resetPwdLink = `${process.env.FRONTEND_URL}/bidsphere/user/resetpwd?token=${resetToken}`;
+                      // FRONTEND_URL = https://bidsphere.vercel.app
+
+    const resetPwdLink = `http://localhost:5000/bidsphere/user/resetpwd?token=${resetToken}`;
+
+    SendResetPwdEmail(email, resetPwdLink);
+
+    return res.status(200).json({ success: true, message: "Reset Password link is shared in your Email"});
+  }
+  catch (error) {
+    console.error("Send Reset Password email error:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+}
+
+async function handleResetPwd (req, res) {
+  try {
+    const { email, newPassword, confirmNewPassword } = req.body;
+
+    if (!email || !newPassword || !confirmNewPassword) {
+      return res.status(400).json({ message: "All fields are required" });
+    }
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    if (newPassword !== confirmNewPassword) {
+      return res.status(400).json({ message: "Passwords do not match" });
+    }
+
+    const isMatch = await bcrypt.compare(newPassword, user.password);
+    if (isMatch) {
+      return res.status(400).json({ message: "New password must be different from old password" });
+    }
+
+    const hashedPassword = await generateHashPassword(newPassword);
+    user.password = hashedPassword;
+    await user.save();
+
+    return res.status(200).json({ message: "Password reset successful" });
+  } 
+  catch (error) {
+    console.error("Password reset error:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export { handleRegister , handleLogin, handleLogout, verifyEmail,getCurrentUser, handleResetPwdEmail, handleResetPwd };

@@ -1,14 +1,8 @@
 import mongoose from "mongoose";
-
+import 'dotenv/config'; 
 const connectDB = async () => {
     try {
-      const mongoUri = process.env.MONGO_URI;
-      if (!mongoUri) {
-        throw new Error("MONGO_URI is not set");
-      }
-      await mongoose.connect(mongoUri, {
-        autoIndex: false,
-      });
+      mongoose.connect(process.env.MONGO_URI)
       
     } catch (error) {
       console.log("config error");
