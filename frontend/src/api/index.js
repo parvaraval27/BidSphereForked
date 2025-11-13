@@ -83,6 +83,13 @@ export const verifyEmail = (payload) => postJSON(`${BASE_USER}/verifyemail`, pay
 
 export const loginAdmin = (payload) => postJSON(`${BASE_ADMIN}/login`, payload);
 export const logoutAdmin = () => postJSON(`${BASE_ADMIN}/logout`, {});
+export const getAllAuctionsAdmin = (params = {}) => {
+  const qs = new URLSearchParams(params).toString();
+  return getJSON(`${BASE_ADMIN}/auctions${qs ? `?${qs}` : ""}`);
+};
+export const getAuctionDetailsAdmin = (auctionId) => getJSON(`${BASE_ADMIN}/auctions/${auctionId}`);
+export const verifyAuction = (auctionId) => postJSON(`${BASE_ADMIN}/auctions/${auctionId}/verify`, {});
+export const removeAuctionAdmin = (auctionId) => postJSON(`${BASE_ADMIN}/auctions/${auctionId}/remove`, {});
 
 export const getAuction = (id) => getJSON(`${BASE_AUCTION}/${id}`);
 export const saveAuctionDraft = (id, payload) => patchJSON(`${BASE_AUCTION}/${id}/draft`, payload);
@@ -105,19 +112,6 @@ export const listAuctions = (params = {}) => {
 };
 export const getCurrentUser = () => getJSON(`${BASE_USER}/me`);
 export const uploadImagesBase64 = (imagesPayload) => postJSON(`${BASE_AUCTION}/upload-base64`, imagesPayload);
-/**
- * Upload images as multipart/form-data using XMLHttpRequest so callers can
- * receive progress updates. Accepts either a FormData or an Array<File>.
- *
- * Usage:
- *   // with FormData
- *   uploadImagesFormData(fd, (progress) => console.log(progress.percent));
- *
- *   // with files array
- *   uploadImagesFormData([file1, file2], (p) => ...)
- *
- * Returns a promise that resolves to the parsed JSON response from the server.
- */
 export async function uploadImagesFormData(formData) {
   const res = await fetch(`${BASE_AUCTION}/upload`, {
     method: "POST",
@@ -128,7 +122,6 @@ export async function uploadImagesFormData(formData) {
   if (!res.ok) throw new Error(data?.message || "Request failed");
   return data;
 }
-
 
 
 // Payment APIs
