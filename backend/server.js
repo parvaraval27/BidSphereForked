@@ -27,10 +27,34 @@ connectDB()
     console.error("Database connection failed");
   });
 
-//middlewares
+// CORS configuration
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'https://bid-sphere-online-auction-system.vercel.app/',  // Replace with your Vercel app URL
+  'https://*.vercel.app'  // Wildcard for all Vercel preview deployments
+];
+
+const corsOptions = {
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  exposedHeaders: ['Authorization']
+};
+
+// Middleware
+app.use(cors(corsOptions));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
-app.use(express.json({ limit: "10mb" }));      
-app.use(cookieParser());      
+app.use(express.json({ limit: "10mb" }));
+app.use(cookieParser());
+
 // serve uploaded files from /uploads
 app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 import { restrictToLoggedinUserOnly, checkAuth } from "./middleware/authMiddleware.js"; 

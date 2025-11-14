@@ -1,0 +1,49 @@
+# Render Blueprint for BidSphere Backend
+
+services:
+  - type: web
+    name: bidsphere-backend
+    env: node
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: MONGODB_URI
+        fromDatabase:
+          name: bidsphere-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 30d
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+      - key: EMAIL_SERVICE
+        value: gmail
+      - key: EMAIL_USERNAME
+        sync: false
+      - key: EMAIL_PASSWORD
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+      - key: ADMIN_IP
+        sync: false
+      - key: AUCTION_STATUS_UPDATER_CRON
+        value: "*/1 * * * *"
+    plan: free
+
+databases:
+  - name: bidsphere-db
+    databaseName: bidsphere
+    user: bidsphere_user
+    plan: free
+    ipAllowList:
+      - group: "render_services"
+      - ip: 0.0.0.0/0  # For Vercel to connect
