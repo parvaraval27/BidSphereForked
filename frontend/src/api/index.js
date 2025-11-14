@@ -1,9 +1,12 @@
-const BASE_USER = "/bidsphere/user";
-const BASE_ADMIN = "/bidsphere/admin";
-const BASE_AUCTION = "/bidsphere/auctions";
+// Get API base URL from environment variables
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
 
-const BASE_UPI = "/bidsphere/upi";
-const BASE_PAYMENTS = "/bidsphere/admin/payments";
+const BASE_USER = `${API_BASE_URL}/bidsphere/user`;
+const BASE_ADMIN = `${API_BASE_URL}/bidsphere/admin`;
+const BASE_AUCTION = `${API_BASE_URL}/bidsphere/auctions`;
+
+const BASE_UPI = `${API_BASE_URL}/bidsphere/upi`;
+const BASE_PAYMENTS = `${API_BASE_URL}/bidsphere/admin/payments`;
 
 async function postJSON(path, body) {
   const res = await fetch(path, {
