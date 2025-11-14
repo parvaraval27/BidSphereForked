@@ -1,13 +1,12 @@
-import Auction from "../models/Auction.js";
+    import Auction from "../models/Auction.js";
 import Bid from "../models/Bids.js";
 import mongoose from "mongoose";
 import User from "../models/User.js";
 import { logAuctionEvent } from "../services/logger.service.js";
-import {
-  uploadBase64ToCloudinary,
-} from "../services/cloudinary.service.js";
+import fs from "fs";
+import path from "path";
 
-// helper: upload base64 images to Cloudinary and return public URLs
+// helper: save base64 images to uploads/ and return public paths
 async function uploadBase64Images(req, res) {
   try {
     const images = req.body?.images;
@@ -15,34 +14,29 @@ async function uploadBase64Images(req, res) {
       return res.status(400).json({ success: false, message: "No images provided" });
     }
 
+    const uploadDir = path.join(process.cwd(), "uploads");
+    if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+
     const saved = [];
     for (const img of images) {
-      const name = img.name ? String(img.name) : `img_${Date.now()}.jpg`;
+      // expected { name, data } where data is dataURL or base64
+      const name = img.name ? String(img.name).replace(/[^a-zA-Z0-9.\-_]/g, "_") : `img_${Date.now()}`;
       let data = img.data || "";
-
+      // strip data URL prefix if present
       const match = data.match(/^data:(.+);base64,(.+)$/);
       let base64;
-      let contentType = "image/jpeg";
-
-      if (match) {
-        contentType = match[1] || contentType;
-        base64 = match[2];
-      } else {
-        base64 = data;
-      }
+      if (match) base64 = match[2];
+      else base64 = data;
 
       if (!base64) continue;
-
-      const dataUri = match
-        ? data
-        : `data:${contentType};base64,${base64}`;
-
-      const cloudinaryResult = await uploadBase64ToCloudinary(dataUri, {
-        filename: name,
-        resourceType: "image",
-      });
-
-      saved.push(cloudinaryResult.url);
+      const buffer = Buffer.from(base64, "base64");
+      const filename = `${Date.now()}_${Math.random().toString(36).slice(2,8)}_${name}`;
+      const filepath = path.join(uploadDir, filename);
+      fs.writeFileSync(filepath, buffer);
+      // return the public path (served from /uploads) — include full absolute URL so frontend can use it directly
+      const host = req.get("host");
+      const proto = req.protocol || "http";
+      saved.push(`${proto}://${host}/uploads/${filename}`);
     }
 
     return res.status(201).json({ success: true, files: saved });
@@ -83,7 +77,8 @@ async function createAuction(req, res) {
     const userId=req.user._id;
     const start=new Date(startTime);
     const end=new Date(endTime);
-    const status=determineStatus(start, end);
+    // New auctions start as "YET_TO_BE_VERIFIED" until admin verifies them
+    const status = "YET_TO_BE_VERIFIED";
 
     const auction = await Auction.create({
       title: String(title).trim(),
@@ -97,6 +92,7 @@ async function createAuction(req, res) {
       },
       createdBy: userId,
       status,
+      verified: false,
       startingPrice: Number(startingPrice),
       minIncrement: Number(minIncrement),
       currentBid: 0,
@@ -194,6 +190,20 @@ async function getAuctionById(req, res) {
       });
     }
 
+    // Only allow viewing verified auctions (unless it's the owner)
+    const isOwner = req.user && auction.createdBy && (
+      (typeof auction.createdBy === 'object' && auction.createdBy._id) 
+        ? auction.createdBy._id.toString() === req.user._id.toString()
+        : auction.createdBy.toString() === req.user._id.toString()
+    );
+    
+    if (!auction.verified && !isOwner) {
+      return res.status(403).json({
+        success: false,
+        message: "This auction is pending verification",
+      });
+    }
+
     const topBids=await Bid.find({auctionId: auction._id })
       .sort({amount: -1 })
       .limit(10)// top 10 bids fetched rn
@@ -218,7 +228,7 @@ async function listAuctions(req, res) {
   try {
     const { status, category, page = 1, limit = 20, sort = "-createdAt" } = req.query;
 
-    const filter = {};
+    const filter = { verified: true }; // Only show verified auctions to public
     if (status) filter.status = status.toUpperCase();
     if (category) filter["item.category"] = category;
 
