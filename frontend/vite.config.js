@@ -13,29 +13,12 @@ export default defineConfig({
   },
   server: {
     port: 3000,
-    host: true,
     proxy: {
       "/bidsphere": {
-        target: "http://localhost:5000",
+        target: "https://bidsphereforked.onrender.com",
         changeOrigin: true,
         secure: false,
       },
     },
   },
-  build: {
-    outDir: "dist",
-    sourcemap: false,
-    rollupOptions: {
-      output: {
-        manualChunks: {
-          vendor: ['react', 'react-dom'],
-          router: ['react-router-dom']
-        }
-      }
-    }
-  },
-  preview: {
-    port: 3000,
-    host: true
-  }
 });
