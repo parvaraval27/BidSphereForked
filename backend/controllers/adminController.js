@@ -41,7 +41,13 @@ try{
     requestIP = requestIP.split("::ffff:")[1];
   }
   
-  res.cookie("adminToken", "admin_logged_in");
+  res.cookie("adminToken", "admin_logged_in", {
+  httpOnly: true,        
+  secure: true,          
+  sameSite: "none",      
+  maxAge: 24 * 60 * 60 * 1000, 
+});
+
   return res.json({ message: "Admin Login successful", admin: { email: adminEmail, adminIP: requestIP } });
 }
 catch(err){
