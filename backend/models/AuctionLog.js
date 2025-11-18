@@ -8,6 +8,7 @@ const logEntrySchema = new mongoose.Schema({
   },
   userName: { 
     type: String,
+    default: "System",
     required: true
   },
   type: {
@@ -25,6 +26,8 @@ const logEntrySchema = new mongoose.Schema({
       "AUCTION_STARTED",
       "AUCTION_ENDED",
       "AUCTION_CANCELLED",
+      "AUCTION_EXTENDED",
+      "AUCTION_WINNER_DECLARED"
     ],
     required: true
   },

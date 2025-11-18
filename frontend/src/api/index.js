@@ -11,17 +11,13 @@ const BASE_PAYMENTS = `${API_BASE_URL}/bidsphere/admin/payments`;
 async function postJSON(path, body) {
   const res = await fetch(path, {
     method: "POST",
-    credentials: "include",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
+    credentials: "include", // <-- ensure cookies (JWT/session) are sent
+    body: JSON.stringify(body || {}),
   });
-  const contentType = res.headers.get("content-type") || "";
-  const data = contentType.includes("application/json") ? await res.json() : null;
-  if (!res.ok) throw new Error(data?.message || "Request failed");
-  return data;
+  if (!res.ok) throw await res.json();
+  return res.json();
 }
-
-
 
 async function patchJSON(path, body) {
   const res = await fetch(path, {
@@ -38,15 +34,11 @@ async function patchJSON(path, body) {
 async function getJSON(path) {
   const res = await fetch(path, {
     method: "GET",
-    credentials: "include",
-    headers: { "Content-Type": "application/json" },
+    credentials: "include", // <-- ensure cookies are sent
+    headers: { "Accept": "application/json" },
   });
-
-  const contentType = res.headers.get("content-type") || "";
-  const data = contentType.includes("application/json") ? await res.json() : null;
-
-  if (!res.ok) throw new Error(data.error || data.message || "Request failed");
-  return data;
+  if (!res.ok) throw await res.json();
+  return res.json();
 }
 
 async function putFormData(path, formData) {
@@ -55,9 +47,8 @@ async function putFormData(path, formData) {
     credentials: "include",
     body: formData,
   });
-  const data = await res.json().catch(() => null);
-  if (!res.ok) throw new Error(data?.message || "Request failed");
-  return data;
+  if (!res.ok) throw await res.json();
+  return res.json();
 }
 
 async function putJSON(path, body) {
@@ -73,10 +64,13 @@ async function putJSON(path, body) {
 }
 
 async function del(path) {
-  const res = await fetch(path, { method: "DELETE", credentials: "include" });
-  const data = await res.json().catch(() => null);
-  if (!res.ok) throw new Error(data?.message || "Request failed");
-  return data;
+  const res = await fetch(path, {
+    method: "DELETE",
+    credentials: "include",
+    headers: { "Accept": "application/json" },
+  });
+  if (!res.ok) throw await res.json();
+  return res.json();
 }
 
 export const registerUser = (payload) => postJSON(`${BASE_USER}/register`, payload);
@@ -113,7 +107,34 @@ export const listAuctions = (params = {}) => {
   const qs = new URLSearchParams(params).toString();
   return getJSON(`${BASE_AUCTION}${qs ? `?${qs}` : ""}`);
 };
+// derive categories from auctions when backend has no dedicated endpoint
+export const getCategories = async (opts = {}) => {
+  // opts.limit can be supplied; default to 200
+  const limit = typeof opts.limit === "number" ? opts.limit : 200;
+  const res = await listAuctions({ limit });
+  const auctions = res?.auctions || [];
+  const map = new Map();
+  for (const a of auctions) {
+    const name = (a?.item?.category || "Uncategorized").trim();
+    if (!map.has(name)) {
+      const img = a?.item?.images?.[0] || null;
+      map.set(name, { name, image: img });
+    }
+  }
+  return Array.from(map.values());
+};
+
+// User endpoints
 export const getCurrentUser = () => getJSON(`${BASE_USER}/me`);
+export const getWatchlist = (params = {}) => {
+  const qs = new URLSearchParams(params).toString();
+  return getJSON(`${BASE_USER}/watchlist${qs ? `?${qs}` : ""}`);
+};
+export const getBiddingHistory = (params = {}) => {
+  const qs = new URLSearchParams(params).toString();
+  return getJSON(`${BASE_USER}/bidding-history${qs ? `?${qs}` : ""}`);
+};
+
 export const uploadImagesBase64 = (imagesPayload) => postJSON(`${BASE_AUCTION}/upload-base64`, imagesPayload);
 export async function uploadImagesFormData(formData) {
   const res = await fetch(`${BASE_AUCTION}/upload`, {
@@ -126,13 +147,42 @@ export async function uploadImagesFormData(formData) {
   return data;
 }
 
+// Bidding APIs
+export const placeBid = (auctionId, amount) => 
+  postJSON(`${BASE_AUCTION}/${auctionId}/bid/place`, { amount });
+
+export const setAutoBid = (auctionId, maxLimit) => 
+  postJSON(`${BASE_AUCTION}/${auctionId}/bid/setauto`, { maxLimit });
+
+export const editAutoBid = (auctionId, autobidId, maxLimit) => 
+  postJSON(`${BASE_AUCTION}/${auctionId}/bid/editauto/${autobidId}`, { maxLimit });
+
+export const activateAutoBid = (auctionId, autobidId) => 
+  postJSON(`${BASE_AUCTION}/${auctionId}/bid/activateauto/${autobidId}`, {});
+
+export const deactivateAutoBid = (auctionId, autobidId) => 
+  postJSON(`${BASE_AUCTION}/${auctionId}/bid/deactivateauto/${autobidId}`, {});
+
+export const getUserAutoBid = (auctionId) => 
+  getJSON(`${BASE_AUCTION}/${auctionId}/bid/myautobid`);
 
 // Payment APIs
-export const createUpiOrder = (payload) => postJSON(`${BASE_UPI}/create-order`, payload);
-export const createCodOrder = (payload) => postJSON(`${BASE_UPI}/create-cod`, payload);
-export const getPaymentStatus = (paymentId) => getJSON(`${BASE_UPI}/status/${paymentId}`);
-export const verifyPayment = (payload) => postJSON(`${BASE_PAYMENTS}/verify-payment`, payload);
+
+// Admin notifications (payment verifications)
+export const getAdminNotifications = () => getJSON(`${BASE_ADMIN}/notifications`);
+export const confirmAdminNotification = (id) => postJSON(`${BASE_ADMIN}/notifications/${id}/confirm`, {});
+export const rejectAdminNotification = (id) => postJSON(`${BASE_ADMIN}/notifications/${id}/reject`, {});
+// Auction-scoped payment endpoints (backend paymentRoutes)
+export const createRegistrationPayment = (auctionId) => postJSON(`${BASE_AUCTION}/${auctionId}/au-registration/pay`, {});
+export const verifyAuctionPayment = (auctionId, paymentId, payload) => postJSON(`${BASE_AUCTION}/${auctionId}/${paymentId}/verify`, payload);
+// Winning payment endpoints (final payment by winner)
+export const createWinningCodPayment = (auctionId) => postJSON(`${BASE_AUCTION}/${auctionId}/finalpay/cod`, {});
+export const createWinningUpiPayment = (auctionId) => postJSON(`${BASE_AUCTION}/${auctionId}/finalpay/upi`, {});
+// legacy/admin verify kept for compatibility
 export const listPayments = (queryParams = {}) => {
   const params = new URLSearchParams(queryParams).toString();
   return getJSON(`${BASE_PAYMENTS}/payments${params ? `?${params}` : ''}`);
 };
+
+export const requestPasswordReset = (payload) => postJSON(`${BASE_USER}/forgetpwd`, payload);
+export const resetPassword = (payload) => postJSON(`${BASE_USER}/resetpwd`, payload);

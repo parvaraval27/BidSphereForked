@@ -1,6 +1,7 @@
 import cron from "node-cron";
 import Auction from "../models/Auction.js";
-import { logAuctionEvent } from "./logger.service.js";
+import Bid from "../models/Bids.js";
+import { logAuctionEvent } from "../services/logger.service.js";
 
 let _cronJob = null;
 let _isRunning = false;
@@ -90,6 +91,12 @@ async function updateAuctionStatuses() {
     );
 
     // live to ended
+    const endedAuctions = await Auction.find({
+      verified: true,
+      status: "LIVE",
+      endTime: { $lte: now },
+    }).select("_id currentWinner").lean();
+
     const toEndedCount = await processStatusUpdateBatch(
       {
         verified: true, 
@@ -99,6 +106,46 @@ async function updateAuctionStatuses() {
       "ENDED",
       "AUCTION_ENDED"
     );
+
+    // After auction ends, set the auction winner based on highest bid
+    if (endedAuctions.length > 0) {
+      for (const auction of endedAuctions) {
+        const highestBid = await Bid.findOne({ auctionId: auction._id })
+          .sort({ amount: -1 })
+          .select("userId amount")
+          .lean();
+
+        if (highestBid) {
+          await Auction.findByIdAndUpdate(auction._id, {
+            auctionWinner: highestBid.userId,
+            winningPrice: highestBid.amount
+          });
+        }
+      }
+    }
+
+    // Also check for any ENDED auctions without winners (in case they were missed)
+    const endedWithoutWinners = await Auction.find({
+      status: "ENDED",
+      auctionWinner: { $exists: false }
+    }).select("_id").lean();
+
+    if (endedWithoutWinners.length > 0) {
+      console.log(`Found ${endedWithoutWinners.length} ended auctions without winners, fixing...`);
+      for (const auction of endedWithoutWinners) {
+        const highestBid = await Bid.findOne({ auctionId: auction._id })
+          .sort({ amount: -1 })
+          .select("userId amount")
+          .lean();
+
+        if (highestBid) {
+          await Auction.findByIdAndUpdate(auction._id, {
+            auctionWinner: highestBid.userId,
+            winningPrice: highestBid.amount
+          });
+        }
+      }
+    }
 
     const duration = Date.now() - startTime;
     const totalUpdated = toLiveCount + upcomingToEndedCount + toEndedCount;

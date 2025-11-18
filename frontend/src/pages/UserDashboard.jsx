@@ -11,6 +11,8 @@ function StatCard({ title, value, small }) {
   );
 }
 
+import { getStatusColor, getStatusLabel } from "../utils/statusHelpers";
+
 function ListingCard({ id, title = "Auction Name", starting = "₹250", status = "Live", bidders = 0, endsIn = "2h 15m", onDelete, deleting }) {
   return (
     <div className="bg-white border rounded-md p-4 flex items-center gap-4">
@@ -18,7 +20,11 @@ function ListingCard({ id, title = "Auction Name", starting = "₹250", status =
       <div className="flex-1">
         <div className="flex items-center justify-between">
           <div className="font-medium">{title}</div>
-          <div className="text-xs text-gray-500">{status}</div>
+          <div>
+            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(status)}`}>
+              {getStatusLabel(status)}
+            </span>
+          </div>
         </div>
         <div className="text-sm text-gray-500 mt-1">Starting bid <span className="font-semibold text-gray-800">{starting}</span></div>
         <div className="flex items-center gap-4 text-xs text-gray-500 mt-2">

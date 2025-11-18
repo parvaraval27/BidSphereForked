@@ -65,6 +65,29 @@ const auctionSchema = new mongoose.Schema({
         },
     ],
 
+    isRegistrationOpen: {
+        type: Boolean,
+        default: false
+    },
+    registrations: [
+        {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "user",
+        },
+    ],
+
+    auctionWinner: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "user"
+    },
+    winningPrice: {
+        type: Number
+    },
+    paymentMethod: {
+        type: String,
+        enum: ["cod", "upi"]
+    },
+
     totalBids: { type: Number, default: 0 },
     totalParticipants: { type: Number, default: 0 },
 }, { timestamps: true });

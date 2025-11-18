@@ -1,329 +1,227 @@
+import Auction from '../models/Auction.js';
 import Payment from '../models/Payment.js';
-import * as upiService from '../services/upiService.js';
+import User from '../models/User.js';
+import AdminNotification from '../models/AdminNotification.js';
+import { generateUpiLink } from '../services/payment.service.js';
+import {  SendCODSelectedEmail, SendUPISelectedEmail, SendPaymentVerificationRequestSent} from '../services/email.sender.js';
 
-export const createOrder = async (req, res) => {
+// simple local paymentId generator to avoid null unique index collisions
+function generatePaymentId() {
+  return `${Date.now().toString(36)}${Math.random().toString(36).slice(2,9)}`;
+}
+
+export const handleRegistrationPayment = async (req, res) => {
   try {
-    const {
-      amount,
-      auctionId,
-      bidderId,
-      payeeVpa,
-      payeeName = '',
-      note = '',
-      expiryMinutes = 60 * 24 * 7,
-    } = req.body;
+    const { auctionId } = req.params;
+    const userId = req.user._id;
 
-    if (!Number.isInteger(amount) || amount <= 0 || !auctionId || !bidderId || !payeeVpa) {
-      return res.status(400).json({
-        error: 'Missing or invalid params: amount (paise integer), auctionId, bidderId, payeeVpa required',
-      });
+    const auction = await Auction.findById(auctionId);
+    if (!auction) {
+      return res.status(400).json({ success: false, message: "Auction not found" });
     }
 
-    // Create a local ledger entry first (status PENDING)
-    const requestId = `upi_req_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
-    const expiry = new Date(Date.now() + expiryMinutes * 60 * 1000);
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(400).json({ success: false, message: "User not found" });
+    }
+  
+    // allow configuration whether registration during UPCOMING is open via env
+    const isRegistrationOpen = process.env.REGISTRATION_OPEN === "true";
 
-    const payment = new Payment({
-      paymentId: requestId,
-      provider: 'upi',
-      amount,
-      auctionId,
-      bidderId,
-      status: 'PENDING',
-      providerStatus: 'pending',
-      expiry,
-      metadata: { payeeVpa, payeeName, note },
-    });
+    if (auction.status === "LIVE" || (auction.status === "UPCOMING" && isRegistrationOpen)) {
 
-    await payment.save();
+      const registrationFees = Math.max(0.01 * auction.startingPrice, 1); // Minimum of 1% of startingPrice or 1 rupee
 
-    const upiLink = upiService.buildUpiDeepLink({
-      payeeVpa,
-      payeeName,
-      amountPaise: amount,
-      note,
-    });
+      const upiLink = await generateUpiLink(auctionId, registrationFees);
+      
+      const expireTime = 5 * 60 * 1000;
 
-    const qrData = upiService.buildUpiQrData({
-      payeeVpa,
-      payeeName,
-      amountPaise: amount,
-      note,
-    });
+      // make payment object
+      const payment = await Payment.create({ 
+        paymentId: generatePaymentId(),
+        provider: "upi",
+        amount: registrationFees,
+        auctionId: auctionId,
+        userId: userId,
+        status: "PENDING",
+        type: "REGISTRATION FEES", 
+        upiLink: upiLink,
+        expiry: expireTime    
+      })
 
-    const qrBase64 = await upiService.qrToDataUrl(qrData);
+      // admin-Notification
+      await AdminNotification.create({
+        auctionId,
+        userId,
+        type: "PAYMENT VERIFICATION",
+        payment,
+        status: "PENDING"
+      })
 
-    return res.status(201).json({
-      success: true,
-      paymentId: payment.paymentId,
-      upiLink,
-      qrBase64,
-      amount: payment.amount,
-      status: payment.status,
-      expiry: payment.expiry,
-      payment: {
-        paymentId: payment.paymentId,
-        amount: payment.amount,
-        status: payment.status,
-        auctionId: payment.auctionId,
-        bidderId: payment.bidderId,
-        expiry: payment.expiry,
-      },
-    });
+      const backendUrl = (process.env.BACKEND_URL || "http://localhost:5000").replace(/\/+$/, "");
+      const verifyLink = `${backendUrl}/bidsphere/auctions/${auctionId}/${payment._id}/verify`;
+
+      return res.status(200).json({payment, verifyLink: verifyLink });
+    }
+    else {
+      return res.status(400).json({ success: false, message: "Registration is not started yet" })
+    }
   } catch (err) {
-    console.error('paymentController.createOrder error:', err);
-    return res.status(500).json({ error: err.message || 'Create UPI request failed' });
+    return res.status(500).json({ error: err.message });
+  }
+};
+
+export const handleWinningCodPayment = async (req, res) => {
+  try {
+    
+    const { auctionId } = req.params;
+    const userId = req.user._id;
+
+    const auction = await Auction.findById(auctionId);
+    if (!auction) {
+      return res.status(400).json({ success: false, message: "Auction not found" });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(400).json({ success: false, message: "User not found" });
+    }
+
+    if (!auction.auctionWinner || auction.auctionWinner.toString() !== userId.toString()) {
+      return res.status(400).json({ success: false, message: "You are not the Winner" });
+    }
+
+    // take all the required credentials for delivery.
+
+    // payment object
+    const expireTime = 24 * 60 * 60 * 1000;
+
+    const payment = await Payment.create({ 
+      paymentId: generatePaymentId(),
+      provider: "cod",
+      amount: auction.winningPrice,
+      auctionId: auctionId,
+      userId: userId,
+      status: "PENDING",
+      type: "WINNING PAYMENT",
+      expiry: expireTime    
+    })
+
+    // admin-notification object
+    await AdminNotification.create({ 
+      auctionId: auctionId,
+      userId: userId,
+      type: "WINNER CHOOSE COD",
+      payment: payment,
+      status: "PENDING"     
+    })
+
+    // send mail
+    SendCODSelectedEmail(user.email, user.username, auction.title )
+
+    return res.status(200).json(payment);
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+};
+
+export const handleWinningUpiPayment = async (req, res) => {
+  try { 
+    
+    const { auctionId } = req.params;
+    const userId = req.user._id;
+
+    const auction = await Auction.findById(auctionId);
+    if (!auction) {
+      return res.status(400).json({ success: false, message: "Auction not found" });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(400).json({ success: false, message: "User not found" });
+    }
+
+    if (!auction.auctionWinner || auction.auctionWinner.toString() !== userId.toString()) {
+      return res.status(400).json({ success: false, message: "You are not the Winner" });
+    }
+
+    // take all the required credentials for delivery. 
+
+    // payment object
+    const expireTime = 24 * 60 * 60 * 1000;
+
+    const upiLink = await generateUpiLink(auctionId, auction.winningPrice);
+
+    const payment = await Payment.create({ 
+      paymentId: generatePaymentId(),
+      provider: "upi",
+      amount: auction.winningPrice,
+      auctionId: auctionId,
+      userId: userId,
+      status: "PENDING",
+      type: "WINNING PAYMENT",
+      upiLink: upiLink,
+      expiry: expireTime    
+    })
+
+    await AdminNotification.create({
+      auctionId: auctionId,
+      userId: userId,
+      type: "WINNER CHOOSE UPI",
+      payment: payment,
+      status: "PENDING"     
+    })
+    
+    // send mail to user
+    SendUPISelectedEmail(user.email, user.username, upiLink, auction.winningPrice);
+    
+    return res.status(200).json(payment);
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
   }
 };
 
 export const verifyPayment = async (req, res) => {
   try {
-    const { paymentId, upiTxnId, paidAmountPaise } = req.body;
+    const { upiAccountName, upiTxnId } = req.body;
+    const { paymentId, auctionId } = req.params;
+    const userId = req.user._id;
 
-    if (!paymentId || !upiTxnId || !Number.isInteger(paidAmountPaise) || paidAmountPaise <= 0) {
-      return res.status(400).json({ error: 'Missing params: paymentId, upiTxnId, paidAmountPaise required' });
+    const auction = await Auction.findById(auctionId);
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(400).json({ success: false, message: "User not found" })
     }
-
-    const ledger = await Payment.findOne({ paymentId });
-
-    if (!ledger) return res.status(404).json({ error: 'Payment ledger not found' });
-
-    if (ledger.amount !== paidAmountPaise) {
-      return res.status(400).json({ error: 'Paid amount does not match ledger amount' });
-    }
-
-    if (ledger.status === 'CAPTURED') {
-      return res.status(200).json({ ok: true, message: 'Payment already captured', ledger });
-    }
-
-    if (ledger.status === 'VOID') {
-      return res.status(400).json({ error: 'Cannot verify a voided payment' });
-    }
-
-    ledger.status = 'CAPTURED';
-    ledger.provider = 'upi';
-    ledger.providerStatus = 'captured';
-    ledger.metadata = { ...ledger.metadata, upiTxnId, verifiedAt: new Date().toISOString() };
-    await ledger.save();
-
-    return res.json({ ok: true, message: 'Payment verified successfully', ledger });
-  } catch (err) {
-    console.error('paymentController.verifyPayment error:', err);
-    return res.status(500).json({ error: err.message || 'verifyPayment failed' });
-  }
-};
-
-export const capturePayment = async (req, res) => {
-  try {
-    const { paymentId, paidAmountPaise, upiTxnId = null } = req.body;
-
-    if (!paymentId || !Number.isInteger(paidAmountPaise) || paidAmountPaise <= 0) {
-      return res.status(400).json({ error: 'Missing paymentId or invalid paidAmountPaise' });
-    }
-
-    const ledger = await Payment.findOne({ paymentId });
-
-    if (!ledger) return res.status(404).json({ error: 'Payment ledger not found' });
-
-    if (ledger.status === 'CAPTURED') {
-      return res.status(200).json({ ok: true, message: 'Already captured', ledger });
-    }
-
-    if (ledger.status === 'VOID') {
-      return res.status(400).json({ error: 'Cannot capture a voided payment' });
-    }
-
-    ledger.status = 'CAPTURED';
-    ledger.providerStatus = 'captured';
-    if (upiTxnId) {
-      ledger.metadata = { ...ledger.metadata, upiTxnId, capturedAt: new Date().toISOString() };
-    } else {
-      ledger.metadata = { ...ledger.metadata, capturedAt: new Date().toISOString() };
-    }
-    await ledger.save();
-
-    return res.json({ ok: true, message: 'Payment captured successfully', ledger });
-  } catch (err) {
-    console.error('paymentController.capturePayment error:', err);
-    return res.status(500).json({ error: err.message || 'capturePayment failed' });
-  }
-};
-
-
-export const voidPayment = async (req, res) => {
-  try {
-    const { paymentId } = req.body;
-
-    if (!paymentId) return res.status(400).json({ error: 'Missing paymentId' });
-
-    const ledger = await Payment.findOne({ paymentId });
-
-    if (!ledger) return res.status(404).json({ error: 'Payment ledger not found' });
-
-    if (ledger.status === 'CAPTURED') {
-      return res.status(400).json({ error: 'Cannot void a captured payment' });
-    }
-
-    ledger.status = 'VOID';
-    ledger.providerStatus = 'voided';
-    await ledger.save();
-
-    return res.json({ ok: true, ledger });
-  } catch (err) {
-    console.error('paymentController.voidPayment error:', err);
-    return res.status(500).json({ error: err.message || 'voidPayment failed' });
-  }
-};
-
-export const getPaymentStatus = async (req, res) => {
-  try {
-    const { paymentId } = req.params;
-
-    if (!paymentId) {
-      return res.status(400).json({ error: 'Missing paymentId' });
-    }
-
-    const payment = await Payment.findOne({ paymentId });
-
+    
+    const payment = await Payment.findById(paymentId);
     if (!payment) {
-      return res.status(404).json({ error: 'Payment not found' });
+      return res.status(400).json({ success: false, message: "Payment object not found" })
     }
 
-    // Check if payment has expired
-    const isExpired = payment.expiry && new Date() > payment.expiry;
-    if (isExpired && payment.status === 'PENDING') {
-      payment.status = 'VOID';
-      payment.providerStatus = 'expired';
-      await payment.save();
+    if (payment.status === "SUCCESS") {
+      return res.status(200).json({ success: true, message: "Payment already verified" });
     }
 
-    return res.json({
-      paymentId: payment.paymentId,
-      status: payment.status,
-      providerStatus: payment.providerStatus,
-      amount: payment.amount,
-      auctionId: payment.auctionId,
-      bidderId: payment.bidderId,
-      expiry: payment.expiry,
-      metadata: payment.metadata,
-      createdAt: payment.createdAt,
-      updatedAt: payment.updatedAt,
-    });
-  } catch (err) {
-    console.error('paymentController.getPaymentStatus error:', err);
-    return res.status(500).json({ error: err.message || 'Get payment status failed' });
-  }
-};
-
-export const createCodOrder = async (req, res) => {
-  try {
-    const {
-      amount,
-      auctionId,
-      bidderId,
-      deliveryAddress = '',
-      contactPhone = '',
-      note = '',
-    } = req.body;
-
-    if (!Number.isInteger(amount) || amount <= 0 || !auctionId || !bidderId) {
-      return res.status(400).json({
-        error: 'Missing or invalid params: amount (paise integer), auctionId, bidderId required',
-      });
-    }
-
-    const paymentId = `cod_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
-
-    const payment = new Payment({
-      paymentId,
-      provider: 'cod',
-      amount,
-      auctionId,
-      bidderId,
-      status: 'PENDING', 
-      providerStatus: 'pending',
-      metadata: { deliveryAddress, contactPhone, note },
-    });
+    payment.upiAccountName = upiAccountName;
+    payment.upiTxnId = upiTxnId;
 
     await payment.save();
 
-    return res.status(201).json({
-      success: true,
-      paymentId: payment.paymentId,
-      amount: payment.amount,
-      status: payment.status,
-      provider: payment.provider,
-      payment: {
-        paymentId: payment.paymentId,
-        amount: payment.amount,
-        status: payment.status,
-        auctionId: payment.auctionId,
-        bidderId: payment.bidderId,
-        provider: payment.provider,
-      },
-    });
+    await AdminNotification.create({ 
+      auctionId,
+      userId,
+      type: "PAYMENT VERIFICATION",
+      payment,
+      status: "PENDING"
+    })
+
+    const reqFor = payment.type;
+
+    // send mail
+    SendPaymentVerificationRequestSent (user.email, user.username, auction.title, reqFor);
+
+    return res.status(200).json({ success: true, message: "Your payment verification request sent"});
   } catch (err) {
-    console.error('paymentController.createCodOrder error:', err);
-    return res.status(500).json({ error: err.message || 'Create COD order failed' });
+    return res.status(500).json({ error: err.message });
   }
 };
-
-export const listPayments = async (req, res) => {
-  try {
-    const { status, auctionId, bidderId, provider, limit = 50, page = 1 } = req.query;
-    
-    const filter = {};
-    if (status) filter.status = status;
-    if (auctionId) filter.auctionId = auctionId;
-    if (bidderId) filter.bidderId = bidderId;
-    if (provider) filter.provider = provider;
-
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-    
-    const payments = await Payment.find(filter)
-      .sort({ createdAt: -1 })
-      .limit(parseInt(limit))
-      .skip(skip)
-      .lean();
-    
-    const total = await Payment.countDocuments(filter);
-    return res.json({
-      success: true,
-      data: payments,
-      pagination: {
-        total,
-        page: parseInt(page),
-        limit: parseInt(limit),
-        pages: Math.ceil(total / parseInt(limit)),
-      },
-    });
-  } catch (err) {
-    console.error('paymentController.listPayments error:', err);
-    return res.status(500).json({ error: err.message || 'List payments failed' });
-  }
-};
-
-export const getPaymentDetails = async (req, res) => {
-  try {
-    const { paymentId } = req.params;
-
-    if (!paymentId) {
-      return res.status(400).json({ error: 'Missing paymentId' });
-    }
-
-    const payment = await Payment.findOne({ paymentId });
-
-    if (!payment) {
-      return res.status(404).json({ error: 'Payment not found' });
-    }
-
-    return res.json({
-      success: true,
-      payment: payment.toObject(),
-    });
-  } catch (err) {
-    console.error('paymentController.getPaymentDetails error:', err);
-    return res.status(500).json({ error: err.message || 'Get payment details failed' });
-  }
-};
-

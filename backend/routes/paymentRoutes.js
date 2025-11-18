@@ -1,16 +1,15 @@
 import express from "express";
-
+import { handleRegistrationPayment, verifyPayment, handleWinningCodPayment, handleWinningUpiPayment } from "../controllers/paymentController.js"
+import { restrictToLoggedinUserOnly } from "../middleware/authMiddleware.js";   
 const router = express.Router();
-import * as paymentController from "../controllers/paymentController.js";
 
-router.post("/verify-payment", paymentController.verifyPayment);
+router.post("/:auctionId/au-registration/pay", restrictToLoggedinUserOnly, handleRegistrationPayment);
 
-router.post("/capture-payment", paymentController.capturePayment);
+router.post("/:auctionId/:paymentId/verify", restrictToLoggedinUserOnly, verifyPayment);
 
-router.post("/void-payment", paymentController.voidPayment);
+router.post("/:auctionId/finalpay/cod", restrictToLoggedinUserOnly, handleWinningCodPayment);
 
-router.get("/payments", paymentController.listPayments);
+router.post("/:auctionId/finalpay/upi", restrictToLoggedinUserOnly, handleWinningUpiPayment);
 
-router.get("/payment/:paymentId", paymentController.getPaymentDetails);
 export default router;
 

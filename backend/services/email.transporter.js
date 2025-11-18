@@ -1,13 +1,32 @@
 import nodemailer from "nodemailer";
-import 'dotenv/config'; 
+import dotenv from "dotenv";
+dotenv.config();
+
 const transporter = nodemailer.createTransport({
-    host: "smtp.gmail.com",
-    port: 587,
-    secure: false,
+    host: process.env.BREVO_SMTP_HOST,
+    port: 465,
+    secure: true,
     auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS
+        user: process.env.BREVO_SMTP_USER,
+        pass: process.env.BREVO_SMTP_PASS
+    },
+    tls: {
+        rejectUnauthorized: false
     }
 });
 
+<<<<<<< HEAD
 export default transporter;
+=======
+
+transporter.verify(function (error, success) {
+  if (error) {
+    console.log("SMTP Error:", error);
+  } else {
+    console.log("SMTP Server is ready");
+  }
+});
+
+
+export default transporter;
+>>>>>>> upstream/main

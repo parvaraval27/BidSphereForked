@@ -11,7 +11,28 @@ app.set("trust proxy", true);
 
 // CORS configuration for production
 const corsOptions = {
+<<<<<<< HEAD
   origin: process.env.CLIENT_ORIGIN || "http://localhost:3000",
+=======
+  origin: (origin, callback) => {
+  if (!origin) return callback(null, true); // allows postman
+
+  const main = process.env.CLIENT_ORIGIN; // allows frontend domain
+  const localhost = /^http:\/\/localhost:\d+$/; // for local dev
+  const vercelPreview = /^https:\/\/bid-sphere-online-auction-s.*\.vercel\.app$/; //for different branches github before pulling to main
+
+  if (
+    origin === main ||
+    localhost.test(origin) ||
+    vercelPreview.test(origin)
+  ) {
+    callback(null, true);
+  } else {
+    callback(new Error("Not allowed by CORS: " + origin));
+  }
+},
+
+>>>>>>> upstream/main
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
@@ -22,7 +43,7 @@ app.use(cors(corsOptions));
 
 //connect to db
 import connectDB from "./services/db.js";
-import { startAuctionStatusUpdater } from "./services/auctionStatusUpdater.js";
+import { startAuctionStatusUpdater } from "./jobs/auctionStatusUpdater.js";
 
 const PORT = process.env.PORT || 5000;
 connectDB()
@@ -37,6 +58,12 @@ connectDB()
   .catch((err) => {
     console.error("Database connection failed");
   });
+
+import {startPaymentStatusJob} from "./jobs/paymentStatusJob.js";
+import {startRegistrationStatusJob} from "./jobs/au-registrationStatusJob.js";
+
+startPaymentStatusJob();
+startRegistrationStatusJob();
 
 //middlewares
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
@@ -60,21 +87,25 @@ app.use("/bidsphere/admin", (req, res, next) => {
   if (!process.env.ADMIN_IP) return next();
   return restrictAdminIP(req, res, next);
 }, adminRoutes)
+<<<<<<< HEAD
+=======
+
+// Bid Route
+import bidRoutes from "./routes/bidRoutes.js";
+app.use("/BidSphere/auctions/:auctionId/bid", bidRoutes);
+>>>>>>> upstream/main
 
 // Auction Route
 import auctionRoutes from "./routes/auctionRoutes.js";
 app.use("/bidsphere/auctions", auctionRoutes);
 
-// Bid Route
-import bidRoutes from "./routes/bidRoutes.js";
-app.use("/BidSphere/:auctionId/bid", bidRoutes);
 
 // Payment Routes
 import paymentRoutes from "./routes/paymentRoutes.js";
-app.use("/bidsphere/admin/payments", restrictAdminIP, paymentRoutes);
+app.use("/bidsphere/auctions", paymentRoutes);
 
-// UPI Payment Routes (public)
-import upiRoutes from "./routes/upiRoutes.js";
-app.use("/bidsphere/upi", upiRoutes);
+// Delivery Routes
+import deliveryRoutes from "./routes/deliveryRoutes.js";
+app.use("/bidsphere/delivery", deliveryRoutes);
 
 export default app;

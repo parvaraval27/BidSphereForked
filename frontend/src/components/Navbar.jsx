@@ -2,12 +2,14 @@ import React, { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { logoutUser, getCurrentUser } from "../api"; 
 import { logoutAdmin } from "../api/index";
+import logo from "../assets/bidsphere.svg";
 
 function Navbar() {
   const [user, setUser] = useState(null);
   const [admin, setAdmin] = useState(null);
   const navigate = useNavigate();
   const location = useLocation(); 
+  const [searchTerm, setSearchTerm] = useState("");
 
   //Load from local storage if data is already available
   const loadAuthFromStorage = () => {
@@ -94,19 +96,44 @@ function Navbar() {
 
   return (
     <nav className="flex items-center justify-between bg-yellow-500 px-6 py-3">
-      <div className="text-2xl font-bold">
-        <Link to="/">BID SPHERE</Link>
+      <div className="flex items-center">
+        <Link to="/" className="inline-block">
+          <img src={logo} alt="BidSphere" className="h-8" />
+        </Link>
       </div>
 
-      <input
-        type="text"
-        placeholder="What are you looking for?"
-        className="px-3 py-2 rounded-md w-72"
-      />
+      <div className="flex items-center bg-white rounded-md mr-6">
+        <input
+          type="text"
+          aria-label="Search auctions"
+          placeholder="What are you looking for?"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              const q = searchTerm.trim();
+              if (q) navigate(`/auctions?search=${encodeURIComponent(q)}`);
+              else navigate('/auctions');
+            }
+          }}
+          className="px-3 py-2 rounded-md w-72"
+        />
+        <button
+          onClick={() => {
+            const q = searchTerm.trim();
+            if (q) navigate(`/auctions?search=${encodeURIComponent(q)}`);
+            else navigate('/auctions');
+          }}
+          className="ml-2 bg-white text-gray-800 px-3 py-2 rounded-md"
+          aria-label="Search">
+          <svg className="w-5 h-5 text-gray-800" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+          </svg>
+        </button>
+      </div>
 
       <ul className="flex space-x-6 font-medium">
         <li><Link to="/categories">Categories</Link></li>
-        <li><Link to="/contact">Contact</Link></li>
         <li><Link to='/create-auction'>Create Auction</Link></li>
 
         {!user && !admin && (

@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { createAuction, uploadImagesFormData } from "../api";
+import CATEGORIES from "../constants/categories";
 
 function FeeStructure() {
   return (
@@ -49,15 +50,7 @@ export default function CreateAuction() {
   const [submitting, setSubmitting] = useState(false);
   const [createdAuctionId, setCreatedAuctionId] = useState(null);
   
-  const categories = [
-    { value: "", label: "Select" },
-    { value: "electronics", label: "Electronics" },
-    { value: "fashion", label: "Fashion" },
-    { value: "collectibles", label: "Collectibles" },
-    { value: "art", label: "Art" },
-    { value: "furniture", label: "Furniture" },
-    { value: "other", label: "Other" }
-  ];
+  const categories = CATEGORIES;
 
   useEffect(() => {
     return () => {

@@ -1,5 +1,7 @@
 import Auction from "../models/Auction.js";
 import mongoose from "mongoose";
+import AdminNotification from "../models/AdminNotification.js";
+import Payment from "../models/Payment.js";
 
 // Helper function to determine status based on time
 function determineStatus(startTime, endTime) {
@@ -235,4 +237,112 @@ async function removeAuction(req, res) {
   }
 }
 
-export { adminLogin, adminLogout, getAllAuctions, getAuctionDetails, verifyAuction, removeAuction };
+// Notifications API
+async function getNotifications(req, res) {
+  try {
+    const { status = 'PENDING' } = req.query;
+    const filter = {};
+    if (status) filter.status = status.toUpperCase();
+
+    const notifs = await AdminNotification.find(filter)
+      .sort({ createdAt: -1 })
+      .populate('payment')
+      .populate('auctionId', 'title')
+      .populate('userId', 'username email')
+      .lean();
+
+    return res.status(200).json({ success: true, notifications: notifs });
+  } catch (err) {
+    console.error('getNotifications error:', err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+}
+
+async function confirmNotification(req, res) {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ success: false, message: 'Invalid id' });
+
+    const notif = await AdminNotification.findById(id).populate('payment auctionId userId');
+    if (!notif) return res.status(404).json({ success: false, message: 'Notification not found' });
+
+    // If notification already processed, return early to avoid duplicate handling
+    if (notif.status && notif.status !== 'PENDING') {
+      return res.status(400).json({ success: false, message: 'Notification already processed' });
+    }
+
+    if (notif.payment) {
+      const payment = await Payment.findById(notif.payment._id || notif.payment);
+      if (payment) {
+        payment.status = 'SUCCESS';
+        await payment.save();
+
+        if (payment.type === 'WINNING PAYMENT') {
+          await AdminNotification.create({
+            auctionId: notif.auctionId,
+            userId: notif.userId,
+            type: 'PAYMENT_SUCCESS_DELIVERY_PENDING',
+            payment: payment._id,
+            status: 'PENDING',
+            message: 'Winning payment verified. Waiting for buyer to submit delivery address.'
+          });
+        }
+      }
+    }
+
+    if (notif.auctionId && notif.userId) {
+      const auction = await Auction.findById(notif.auctionId._id || notif.auctionId);
+      const userId = notif.userId._id || notif.userId;
+      if (auction) {
+        const already = (auction.registrations || []).some((r) => r.toString() === userId.toString());
+        if (!already) {
+          auction.registrations = auction.registrations || [];
+          auction.registrations.push(userId);
+          auction.totalParticipants = (auction.totalParticipants || 0) + 1;
+          await auction.save();
+        }
+      }
+    }
+
+    notif.status = 'CONFIRM';
+    await notif.save();
+    
+    return res.status(200).json({ success: true, message: 'Notification confirmed' });
+  } catch (err) {
+    console.error('confirmNotification error:', err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+}
+
+async function rejectNotification(req, res) {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ success: false, message: 'Invalid id' });
+
+    const notif = await AdminNotification.findById(id).populate('payment');
+    if (!notif) return res.status(404).json({ success: false, message: 'Notification not found' });
+
+    // Prevent re-processing of the same notification
+    if (notif.status && notif.status !== 'PENDING') {
+      return res.status(400).json({ success: false, message: 'Notification already processed' });
+    }
+
+    if (notif.payment) {
+      const payment = await Payment.findById(notif.payment._id || notif.payment);
+      if (payment) {
+        payment.status = 'FAILED';
+        await payment.save();
+      }
+    }
+
+    notif.status = 'REJECT';
+    await notif.save();
+
+    return res.status(200).json({ success: true, message: 'Notification rejected' });
+  } catch (err) {
+    console.error('rejectNotification error:', err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+}
+
+export { adminLogin, adminLogout, getAllAuctions, getAuctionDetails, verifyAuction, removeAuction, getNotifications, confirmNotification, rejectNotification };

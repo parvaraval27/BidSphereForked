@@ -179,8 +179,8 @@ async function getAuctionById(req, res) {
     }
 
     const auction=await Auction.findById(auctionId)
-      .populate("createdBy", "name email")
-      .populate("currentWinner", "name email")
+      .populate("createdBy", "username email")
+      .populate("currentWinner", "username email")
       .lean();
 
     if (!auction) {
@@ -207,8 +207,8 @@ async function getAuctionById(req, res) {
     const topBids=await Bid.find({auctionId: auction._id })
       .sort({amount: -1 })
       .limit(10)// top 10 bids fetched rn
-      .select("bidderId amount timestamp")
-      .populate("bidderId", "name email")
+      .select("userId amount createdAt")
+      .populate("userId", "username email")
       .lean();
 
     return res.status(200).json({
@@ -226,11 +226,24 @@ async function getAuctionById(req, res) {
 //GET /bidsphere/auctions
 async function listAuctions(req, res) {
   try {
-    const { status, category, page = 1, limit = 20, sort = "-createdAt" } = req.query;
+    const { status, category, search, page = 1, limit = 20, sort = "-createdAt" } = req.query;
 
     const filter = { verified: true }; // Only show verified auctions to public
     if (status) filter.status = status.toUpperCase();
     if (category) filter["item.category"] = category;
+
+    // If search is provided, perform a case-insensitive regex search across several fields
+    if (search && String(search).trim()) {
+      // escape regex special chars
+      const esc = String(search).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const re = new RegExp(esc, "i");
+      filter.$or = [
+        { title: re },
+        { "item.name": re },
+        { "item.description": re },
+        { "item.category": re },
+      ];
+    }
 
     const skip = (Number(page) - 1) * Number(limit);
 
@@ -239,7 +252,7 @@ async function listAuctions(req, res) {
       .skip(skip)
       .limit(Number(limit))
       .select("title item.name item.images startTime endTime currentBid status startingPrice totalBids")
-      .populate("createdBy", "name")
+      .populate("createdBy", "username")
       .lean();
 
     const total = await Auction.countDocuments(filter);
@@ -389,6 +402,37 @@ async function deleteAuction(req, res) {
   }
 }
 
+const handleRegisterInAuction = async (req, res) => {
+  try {
+    const { email } = req.body;
+    const {auctionId} = req.params;
+
+    const auction = await Auction.findById(auctionId);
+    if (!auction) {
+      return res.status(400).json({ success: false, message: "Auction not found" });
+    } 
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      // redirect to login page
+      return res.status(400).json({ success: false, message: "User not found" });
+    }
+    
+    if(user._id === auction.createdBy){
+      return res.status(400).json({ success: false, message: "You are seller"});
+    }
+
+    return res.json({
+      success: true,
+      redirectUrl: `/bidsphere/auctions/${auctionId}/au-registration/pay`
+    });
+
+  }
+  catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+}
+
 export {
   createAuction,
   getMyAuctions,
@@ -397,4 +441,5 @@ export {
   editAuction,
   deleteAuction,
   uploadBase64Images,
+  handleRegisterInAuction
 };

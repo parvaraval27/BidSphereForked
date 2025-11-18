@@ -1,6 +1,9 @@
 import mongoose from 'mongoose';
 
 const userSchema = new mongoose.Schema({
+    fullname:{
+        type: String,
+    },
     username: { 
         type: String, 
         required: true 
@@ -13,6 +16,22 @@ const userSchema = new mongoose.Schema({
     password: { 
         type: String, 
         required: true 
+    },
+    bio: {
+        type: String,
+    },
+    address: {
+      type: {
+        street: { type: String },
+        city: { type: String },
+        state: { type: String },
+        postalCode: { type: String },
+        country: { type: String }
+      },
+      default: null
+    },
+    profilePhoto:{
+        type : String,
     },
     isVerified: { 
         type: Boolean, 

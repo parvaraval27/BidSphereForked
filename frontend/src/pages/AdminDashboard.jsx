@@ -1,5 +1,13 @@
 import React, { useEffect, useState } from "react";
-import { getAllAuctionsAdmin, getAuctionDetailsAdmin, verifyAuction, removeAuctionAdmin } from "../api";
+import {
+  getAllAuctionsAdmin,
+  getAuctionDetailsAdmin,
+  verifyAuction,
+  removeAuctionAdmin,
+  getAdminNotifications,
+  confirmAdminNotification,
+  rejectAdminNotification,
+} from "../api";
 
 function AdminDashboard() {
   const [auctions, setAuctions] = useState([]);
@@ -10,6 +18,10 @@ function AdminDashboard() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [verifyingId, setVerifyingId] = useState(null);
   const [removingId, setRemovingId] = useState(null);
+  const [notifications, setNotifications] = useState([]);
+  const [notifLoading, setNotifLoading] = useState(false);
+  const [notifProcessingId, setNotifProcessingId] = useState(null);
+  const [showNotifs, setShowNotifs] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -35,8 +47,28 @@ function AdminDashboard() {
     };
   }, [statusFilter]);
 
+  // load admin notifications (payment verification requests)
+  useEffect(() => {
+    let mounted = true;
+    async function loadNotifications() {
+      setNotifLoading(true);
+      try {
+        const res = await getAdminNotifications();
+        if (!mounted) return;
+        setNotifications(res?.notifications || res || []);
+      } catch (err) {
+        console.error("loadNotifications error:", err);
+      } finally {
+        if (mounted) setNotifLoading(false);
+      }
+    }
+    // fetch once on mount
+    loadNotifications();
+    return () => { mounted = false; };
+  }, []);
+
   const handleVerify = async (auctionId) => {
-    if (!window.confirm("Are you sure you want to verify this auction? The status will change to LIVE.")) return;
+    if (!window.confirm("Are you sure you want to verify this auction? The status will change to UPCOMING/LIVE.")) return;
     
     setVerifyingId(auctionId);
     try {
@@ -50,7 +82,7 @@ function AdminDashboard() {
         setSelectedAuction(res.auction);
       }
 
-      alert(res.message || "Auction verified successfully. Status changed to LIVE.");
+      alert(res.message || "Auction verified successfully. Status changed to UPCOMING/LIVE.");
     } catch (err) {
       alert(err.message || "Failed to verify auction");
     } finally {
@@ -91,6 +123,37 @@ function AdminDashboard() {
       alert(err.message || "Failed to remove auction");
     } finally {
       setRemovingId(null);
+    }
+  };
+
+  // notification handlers
+  const handleConfirmNotification = async (notifId) => {
+    if (!window.confirm("Confirm this payment and register the bidder?")) return;
+    setNotifProcessingId(notifId);
+    try {
+      await confirmAdminNotification(notifId);
+      setNotifications((prev) => prev.filter((n) => n._id !== notifId));
+      alert("Payment confirmed and bidder registered.");
+    } catch (err) {
+      console.error("confirm notification error:", err);
+      alert(err?.message || "Failed to confirm notification");
+    } finally {
+      setNotifProcessingId(null);
+    }
+  };
+
+  const handleRejectNotification = async (notifId) => {
+    if (!window.confirm("Reject this payment verification request?")) return;
+    setNotifProcessingId(notifId);
+    try {
+      await rejectAdminNotification(notifId);
+      setNotifications((prev) => prev.filter((n) => n._id !== notifId));
+      alert("Payment verification rejected.");
+    } catch (err) {
+      console.error("reject notification error:", err);
+      alert(err?.message || "Failed to reject notification");
+    } finally {
+      setNotifProcessingId(null);
     }
   };
 
@@ -167,6 +230,15 @@ function AdminDashboard() {
           <>
             <div className="mb-4 text-sm text-gray-600">
               Total Auctions: <span className="font-semibold">{auctions.length}</span>
+            </div>
+
+            <div className="mb-4">
+              <button
+                onClick={() => setShowNotifs(true)}
+                className="px-4 py-2 bg-yellow-500 text-white rounded-md hover:bg-yellow-600"
+              >
+                Payment Verifications ({notifications.length})
+              </button>
             </div>
 
             {auctions.length === 0 ? (
@@ -301,6 +373,57 @@ function AdminDashboard() {
       </div>
 
       {/* Auction Detail Modal */}
+      {/* Payment Verifications Modal */}
+      {showNotifs && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={() => setShowNotifs(false)}>
+          <div className="bg-white rounded-lg max-w-3xl w-full max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-2xl font-bold text-gray-800">Payment Verifications</h2>
+                <button onClick={() => setShowNotifs(false)} className="text-gray-500 hover:text-gray-700 text-2xl">×</button>
+              </div>
+
+              {notifLoading ? (
+                <div className="text-center py-8">Loading...</div>
+              ) : notifications.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">No pending payment verifications.</div>
+              ) : (
+                <div className="space-y-4">
+                  {notifications.map((n) => (
+                    <div key={n._id} className="border rounded p-4">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <div className="text-sm text-gray-600">Payment ID: <span className="font-mono text-xs">{n.payment?._id || n._id}</span></div>
+                          <div className="text-lg font-semibold text-gray-900">Amount: ₹{(n.payment?.amount != null) ? Number(n.payment.amount).toLocaleString() : (n.payment?.amount || 'N/A')}</div>
+                          <div className="text-sm text-gray-600">Auction: {n.auctionId?.title || n.auctionId || 'N/A'}</div>
+                          <div className="text-sm text-gray-600">Bidder: {n.userId?.username || n.userId?.email || n.userId || 'N/A'}</div>
+                          <div className="text-xs text-gray-500">Requested: {new Date(n.createdAt).toLocaleString()}</div>
+                        </div>
+                        <div className="flex flex-col items-end gap-2">
+                          <button
+                            onClick={() => handleConfirmNotification(n._id)}
+                            disabled={notifProcessingId === n._id}
+                            className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-60"
+                          >
+                            {notifProcessingId === n._id ? 'Processing...' : 'Confirm'}
+                          </button>
+                          <button
+                            onClick={() => handleRejectNotification(n._id)}
+                            disabled={notifProcessingId === n._id}
+                            className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-60"
+                          >
+                            {notifProcessingId === n._id ? 'Processing...' : 'Reject'}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
       {selectedAuction && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={() => setSelectedAuction(null)}>
           <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>

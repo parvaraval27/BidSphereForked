@@ -85,7 +85,19 @@ export const handleAutoBids = async (auctionId) => {
         details: { amount: nextBid },
       });
 
-      // Update auction
+      const now = new Date();
+      // Extend auction if within last 5 minutes
+      const timeDiff = auction.endTime - now;
+      if (timeDiff <= 5 * 60 * 1000) {
+        auction.endTime = new Date(auction.endTime.getTime() + 5 * 60 * 1000);
+        await logAuctionEvent({
+          auctionId,                                                                                  
+          userName: "System",
+          type: "AUCTION_EXTENDED",
+          details: { newEndTime: auction.endTime },
+        });
+      }
+      // Update further auction details
       auction.currentBid = nextBid;
       auction.currentWinner = bidder.userId;
       auction.totalBids += 1;

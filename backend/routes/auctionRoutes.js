@@ -8,6 +8,7 @@ import {
   editAuction,
   deleteAuction,
   uploadBase64Images,
+  handleRegisterInAuction
 } from "../controllers/auctionController.js";
 import multer from "multer";
 import {
@@ -78,5 +79,6 @@ router.delete(
   ensureBeforeStart(2),
   deleteAuction
 );
+router.post("/:auctionId/au-registration", auth, handleRegisterInAuction)
 
 export default router;
