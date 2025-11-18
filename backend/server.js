@@ -11,9 +11,6 @@ app.set("trust proxy", true);
 
 // CORS configuration for production
 const corsOptions = {
-<<<<<<< HEAD
-  origin: process.env.CLIENT_ORIGIN || "http://localhost:3000",
-=======
   origin: (origin, callback) => {
   if (!origin) return callback(null, true); // allows postman
 
@@ -32,7 +29,6 @@ const corsOptions = {
   }
 },
 
->>>>>>> upstream/main
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
@@ -87,13 +83,10 @@ app.use("/bidsphere/admin", (req, res, next) => {
   if (!process.env.ADMIN_IP) return next();
   return restrictAdminIP(req, res, next);
 }, adminRoutes)
-<<<<<<< HEAD
-=======
 
 // Bid Route
 import bidRoutes from "./routes/bidRoutes.js";
 app.use("/BidSphere/auctions/:auctionId/bid", bidRoutes);
->>>>>>> upstream/main
 
 // Auction Route
 import auctionRoutes from "./routes/auctionRoutes.js";
